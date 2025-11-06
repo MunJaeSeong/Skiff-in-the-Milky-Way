@@ -1,0 +1,138 @@
+/* 시작 화면 스타일 */
+:root{
+  --bg-dark: #000;
+  --accent: #ffffff;
+  --muted: rgba(255,255,255,0.6);
+}
+html,body{height:100%;margin:0;font-family: 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;background:var(--bg-dark);color:var(--accent);}
+
+/* 캔버스 전체 크기 처리 */
+#gameCanvas{display:block;width:100vw;height:100vh;background:#000;}
+
+/* 시작 화면 전체를 덮는 오버레이 */
+.start-screen{
+  position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  background-image: url('../bg.png'); /* bg.png는 프로젝트 루트(css 폴더 기준 상위) 에 위치시킵니다 */
+  background-position: left center; background-repeat:no-repeat; background-size: auto 100%;
+}
+
+/* 배경 위에 어두운 그라데이션을 추가하여 메뉴/텍스트 가독성 확보 */
+.start-screen .start-overlay{
+  position:relative;width:100%;height:100%;background:linear-gradient(90deg, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.45) 70%, rgba(0,0,0,0.0) 100%);
+  display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:40px 80px;box-sizing:border-box;
+}
+
+/* 타이틀(오른쪽 상단 영역) */
+.game-title{
+  font-family: 'Noto Serif KR', 'Georgia', serif; /* serif 계열로 분위기 조성 */
+  font-size:56px;line-height:0.9;margin:12px 0 40px 0;color:var(--accent);text-align:right;
+  text-shadow: 0 6px 18px rgba(0,0,0,0.8);
+}
+/* 오른쪽 여백을 추가하여 제목과 화면 오른쪽 사이의 간격을 조금 더 확보 */
+.game-title{ margin-right:30px; }
+.game-title{ margin-bottom:80px; }
+
+/* 은하수 주변 반짝이는 별 이펙트 */
+.starry{position:relative;display:inline-block;padding-right:8px}
+.starry .stars{position:absolute;right:0;top:0;width:160px;height:90px;pointer-events:none;overflow:visible}
+
+/* 두 개의 레이어로 별을 배치하여 서로 다른 속도로 깜빡이게 함 */
+.starry .stars::before,
+.starry .stars::after{
+  content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;
+}
+
+/* inner layer: quick bright sparks that expand outward and fade (inner -> outer illusion) */
+.starry .stars::before{
+  width:2px;height:2px;background:#fff;
+  box-shadow: -46px -6px #fff,-28px -20px #fff,-10px -34px #fff,6px -10px #fff,24px -30px #fff,44px -8px #fff,66px 6px #fff,-6px 28px #fff,-36px 22px #fff;
+  opacity:1;filter:drop-shadow(0 0 6px rgba(255,255,255,0.95));
+  transform-origin:50% 50%;
+  /* faster, ease-out so stars seem to shoot outward and fade */
+  animation: twinkleA 1600ms cubic-bezier(.2,.8,.2,1) infinite;
+}
+
+/* outer layer: slower faint twinkle that remains as background */
+.starry .stars::after{
+  width:1px;height:1px;background:#fff;
+  box-shadow: -58px 10px #fff,-12px 40px #fff,10px 12px #fff,36px 48px #fff,58px 30px #fff,-30px -8px #fff,10px -50px #fff;
+  opacity:0.6;filter:blur(.6px);
+  transform-origin:50% 50%;
+  animation: twinkleB 3400ms ease-in-out infinite;
+}
+
+@keyframes twinkleA{
+  /* inner: stars start overlapped at center (0,0) then move outward to final offsets while fading */
+  0%{
+    opacity:1;
+    transform:translate(-50%,-50%) scale(0.85);
+    filter:drop-shadow(0 0 6px rgba(255,255,255,0.95));
+    box-shadow: 0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff;
+  }
+  45%{
+    opacity:0.95;
+    transform:translate(-50%,-50%) scale(1.15);
+    filter:drop-shadow(0 0 10px rgba(255,255,255,1));
+    box-shadow: -18px -2px #fff, -11px -8px #fff, -4px -14px #fff, 2px -4px #fff, 10px -12px #fff, 18px -3px #fff, 26px 2px #fff, -2px 11px #fff, -14px 9px #fff;
+  }
+  85%{
+    opacity:0.35;
+    transform:translate(-50%,-50%) scale(1.8);
+    filter:blur(.6px);
+    box-shadow: -39px -5px #fff, -24px -17px #fff, -9px -29px #fff, 5px -9px #fff, 20px -26px #fff, 37px -7px #fff, 56px 5px #fff, -5px 24px #fff, -31px 19px #fff;
+  }
+  100%{
+    opacity:0;
+    transform:translate(-50%,-50%) scale(2.2);
+    filter:blur(1.2px);
+    box-shadow: -46px -6px #fff, -28px -20px #fff, -10px -34px #fff, 6px -10px #fff, 24px -30px #fff, 44px -8px #fff, 66px 6px #fff, -6px 28px #fff, -36px 22px #fff;
+  }
+}
+
+@keyframes twinkleB{
+  /* outer: background stars gently move out from center and pulse */
+  0%{
+    opacity:0.55;
+    transform:translate(-50%,-50%) scale(1);
+    filter:blur(.6px);
+    box-shadow: 0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff;
+  }
+  50%{
+    opacity:0.9;
+    transform:translate(-50%,-50%) scale(1.05);
+    filter:blur(.3px);
+    box-shadow: -29px 5px #fff, -6px 20px #fff, 5px 6px #fff, 18px 24px #fff, 29px 15px #fff, -15px -4px #fff, 5px -25px #fff;
+  }
+  100%{
+    opacity:0.55;
+    transform:translate(-50%,-50%) scale(1);
+    filter:blur(.6px);
+    box-shadow: -58px 10px #fff, -12px 40px #fff, 10px 12px #fff, 36px 48px #fff, 58px 30px #fff, -30px -8px #fff, 10px -50px #fff;
+  }
+}
+
+/* 타이틀을 구성하는 각 라인 스타일 */
+.title-line{display:block}
+.title-large{font-size:64px;line-height:0.95;font-weight:700;letter-spacing:-1px}
+.title-small{font-size:48px;line-height:1;margin-top:6px;position:relative;left:36px;font-weight:600}
+
+/* 메인 메뉴: 오른쪽 중앙에 수직으로 정렬 */
+.main-menu{display:flex;flex-direction:column;gap:18px;align-items:flex-end}
+.menu-item{background:transparent;border:none;color:var(--muted);font-size:20px;padding:8px 14px;cursor:pointer;transition:all .18s;}
+.menu-item:hover{color:var(--accent);transform:translateX(-6px)}
+.menu-item.primary{color:var(--accent);font-weight:700;font-size:22px}
+
+/* 메뉴 버튼 시각적 표시(작은 화살표) */
+.menu-item.primary::before{content:'▶';margin-right:8px;color:var(--accent)}
+
+/* 간단한 모달(게임설명/설정) 스타일 */
+.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#0b0b0b;border-radius:8px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,0.8);max-width:640px;width:90%;color:var(--accent)}
+.modal h2{margin-top:0;font-size:20px}
+.modal .close{display:inline-block;margin-top:12px;padding:6px 10px;background:#222;border:none;color:#fff;border-radius:6px;cursor:pointer}
+
+/* 반응형: 작은 화면에서 bg 이미지를 중앙/상단으로 조정 */
+@media (max-width:900px){
+  .start-screen{background-position: center top;background-size: cover}
+  .game-title{font-size:34px}
+  .menu-item{font-size:18px}
+}
