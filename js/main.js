@@ -5,17 +5,20 @@ document.addEventListener('DOMContentLoaded', function(){
   const btnHow = document.getElementById('btnHow');
   const btnSettings = document.getElementById('btnSettings');
   const canvas = document.getElementById('gameCanvas');
+  const selectCanvas = document.getElementById('gameSelectCanvas');
+  const selectUI = document.getElementById('gameSelectUI');
 
   function hideStartScreen(){
     if (startScreen) startScreen.style.display = 'none';
-    // 캔버스를 표시(초기화는 게임 로직에서 수행)
-    if (canvas){ canvas.style.display = 'block'; try { canvas.focus(); } catch(e){} }
+    // 기본 동작: show the game select canvas and UI, not the main game canvas.
+    if (selectCanvas){ selectCanvas.style.display = 'block'; try { selectCanvas.focus(); } catch(e){} }
+    if (selectUI){ selectUI.style.display = 'block'; selectUI.setAttribute('aria-hidden','false'); }
   }
 
   btnStart && btnStart.addEventListener('click', function(){
     hideStartScreen();
-    // 게임 시작 훅: 만약 다른 스크립트가 window.startGame 함수를 제공하면 호출
-    if (typeof window.startGame === 'function') window.startGame();
+    // Do not automatically start the game here. The selection UI will control when the
+    // actual game canvas (`#gameCanvas`) should be shown and window.startGame invoked.
   });
 
   btnHow && btnHow.addEventListener('click', function(){
@@ -39,6 +42,8 @@ document.addEventListener('DOMContentLoaded', function(){
     document.body.appendChild(modal);
   }
 
-  // 초기 상태: 캔버스는 숨기고 스타트스크린 보여주기
+  // 초기 상태: both canvases and select UI are hidden; start screen visible
   if (canvas) canvas.style.display = 'none';
+  if (selectCanvas) selectCanvas.style.display = 'none';
+  if (selectUI) { selectUI.style.display = 'none'; selectUI.setAttribute('aria-hidden','true'); }
 });

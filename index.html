@@ -6,6 +6,7 @@
     <title>은하수 속의 조각배</title>
 
     <link rel="stylesheet" href="css/startpage.css">
+    <link rel="stylesheet" href="css/select.css">
   </head>
 
   <body>
@@ -32,7 +33,29 @@
     </div>
 
     <!-- 게임 캔버스: 시작 화면이 가려진 후 표시됩니다 -->
+    <canvas id="gameSelectCanvas"></canvas>
     <canvas id="gameCanvas"></canvas>
+
+    <!-- Game Select UI: customization button, practice mode checkbox, and stage selector -->
+    <div id="gameSelectUI" class="select-ui" aria-hidden="true">
+      <div class="select-controls">
+        <button id="customizeBtn" class="btn customize">커스텀마이징</button>
+        <label class="practice-label">
+          <input type="checkbox" id="practiceMode">
+          연습모드
+        </label>
+      </div>
+
+      <section class="stage-selector" aria-label="스테이지 선택">
+        <h2 class="sr-only">스테이지 선택</h2>
+        <div class="stage-list-wrapper">
+          <ul id="stageList" class="stage-list" role="list">
+            <!-- Stage items will be rendered here by js/Select.js -->
+          </ul>
+        </div>
+      </section>
+    </div>
     <script src="js/main.js"></script>
+    <script src="js/Select.js"></script>
   </body>
 </html>
