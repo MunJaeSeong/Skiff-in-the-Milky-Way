@@ -126,10 +126,12 @@
       <div class="settings-row">
         <label class="settings-sound-label">${t.soundLabel}</label>
         <div>
+          <!-- checkbox next to the sound label -->
           <label style="display:inline-flex;align-items:center;gap:8px;">
-            <input type="checkbox" class="settings-sound-enabled">
+            <input type="checkbox" class="settings-sound-enabled" aria-label="${t.soundLabel}">
           </label>
-          <div style="margin-top:8px;">
+          <!-- volume wrapper will be shown/hidden depending on checkbox -->
+          <div class="settings-volume-wrap" style="margin-top:8px;">
             <input type="range" min="0" max="1" step="0.01" class="settings-volume" />
           </div>
         </div>
@@ -159,13 +161,42 @@
     const saveBtn = modal.querySelector('.settings-save');
     const closeBtn = modal.querySelector('.close');
 
-    chk.checked = !!settings.soundEnabled;
+    // checkbox semantics: checked === OFF, unchecked === ON
+    chk.checked = !settings.soundEnabled;
     vol.value = (typeof settings.soundVolume === 'number') ? settings.soundVolume : defaults.soundVolume;
+    // show/hide volume control depending on sound enabled
+    const volWrap = modal.querySelector('.settings-volume-wrap');
+    if (volWrap) {
+      // when checkbox is checked => sound is OFF, so hide the volume
+      if (chk.checked) {
+        volWrap.style.display = 'none';
+        vol.setAttribute('aria-hidden','true');
+        vol.disabled = true;
+      } else {
+        volWrap.style.display = '';
+        vol.removeAttribute('aria-hidden');
+        vol.disabled = false;
+      }
+    }
     sel.value = settings.language || 'ko';
 
     // live preview: change volume & language immediately
     chk.addEventListener('change', function(){
-      const s = readSettings(); s.soundEnabled = chk.checked; writeSettings(s);
+      // checked means OFF, so invert when storing
+      const s = readSettings(); s.soundEnabled = !chk.checked; writeSettings(s);
+      // toggle volume UI: show when sound is ON (unchecked)
+      if (volWrap) {
+        if (chk.checked) {
+          // OFF -> hide volume
+          volWrap.style.display = 'none';
+          vol.disabled = true;
+          vol.setAttribute('aria-hidden','true');
+        } else {
+          volWrap.style.display = '';
+          vol.disabled = false;
+          vol.removeAttribute('aria-hidden');
+        }
+      }
     });
     vol.addEventListener('input', function(){
       const s = readSettings(); s.soundVolume = parseFloat(vol.value); writeSettings(s);
@@ -177,25 +208,101 @@
 
     saveBtn.addEventListener('click', function(){
       const s = readSettings();
-      s.soundEnabled = !!chk.checked;
+  // persist inverted checkbox semantics (checked === OFF)
+  s.soundEnabled = !chk.checked;
       s.soundVolume = parseFloat(vol.value);
       s.language = sel.value;
       writeSettings(s);
       // apply language one more time (defensive)
       applyLanguage(s.language);
-      try{ modal.remove(); }catch(e){}
+      // close and restore UI
+      try{ closeModal(); }catch(e){ /* best-effort */ }
     });
 
     closeBtn.addEventListener('click', function(){
-      try{ modal.remove(); }catch(e){}
-      // restore language from stored value in case user changed but didn't save
-      const saved = readSettings();
-      applyLanguage(saved.language);
+      // just close and restore UI (don't persist unsaved changes)
+      try{ closeModal(); }catch(e){ /* best-effort */ }
     });
 
-    // append and focus
+    // create a backdrop so background controls are not clickable
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+
+    // list of ids to disable while modal is open
+    const disableIds = ['btnStart','btnHow','btnSettings'];
+    const disabledElements = [];
+    function disableBackgroundElements(){
+      disableIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        // store previous disabled state
+        el.dataset._wasDisabled = el.disabled ? '1' : '0';
+        try{ el.disabled = true; }catch(e){}
+        // also remove from tab order
+        el.dataset._wasTabIndex = el.getAttribute('tabindex') || '';
+        el.setAttribute('tabindex','-1');
+        disabledElements.push(el);
+      });
+    }
+    function restoreBackgroundElements(){
+      disabledElements.forEach(el => {
+        try{ el.disabled = (el.dataset._wasDisabled === '1'); }catch(e){}
+        const prev = el.dataset._wasTabIndex;
+        if (prev === '') el.removeAttribute('tabindex'); else el.setAttribute('tabindex', prev);
+        delete el.dataset._wasDisabled;
+        delete el.dataset._wasTabIndex;
+      });
+      disabledElements.length = 0;
+    }
+
+    // append backdrop then modal
+    document.body.appendChild(backdrop);
     document.body.appendChild(modal);
-    try{ vol.focus(); }catch(e){}
+
+    // disable background buttons
+    disableBackgroundElements();
+
+    // focus management: trap focus inside modal
+    const FOCUSABLE = 'a[href], area[href], input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
+    let focusableInside = Array.from(modal.querySelectorAll(FOCUSABLE)).filter(el => el.offsetParent !== null);
+    function refreshFocusable(){ focusableInside = Array.from(modal.querySelectorAll(FOCUSABLE)).filter(el => el.offsetParent !== null); }
+
+    function onKeyDown(e){
+      if (e.key === 'Escape'){
+        e.preventDefault();
+        closeModal();
+        return;
+      }
+      if (e.key === 'Tab'){
+        refreshFocusable();
+        if (focusableInside.length === 0){ e.preventDefault(); return; }
+        const first = focusableInside[0];
+        const last = focusableInside[focusableInside.length - 1];
+        if (e.shiftKey){
+          if (document.activeElement === first || !modal.contains(document.activeElement)){
+            e.preventDefault(); last.focus();
+          }
+        } else {
+          if (document.activeElement === last){ e.preventDefault(); first.focus(); }
+        }
+      }
+    }
+
+    function closeModal(){
+      try{ modal.remove(); }catch(e){}
+      try{ backdrop.remove(); }catch(e){}
+      restoreBackgroundElements();
+      document.removeEventListener('keydown', onKeyDown, true);
+      // restore language in case of cancel
+      const saved = readSettings();
+      applyLanguage(saved.language);
+    }
+
+    // wire key handler
+    document.addEventListener('keydown', onKeyDown, true);
+
+    // focus the first focusable element in the modal
+    try{ setTimeout(() => { refreshFocusable(); if (focusableInside[0]) focusableInside[0].focus(); else vol.focus(); }, 10); }catch(e){}
   }
 
   // init: apply stored language right away so menu uses correct language

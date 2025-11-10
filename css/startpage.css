@@ -198,9 +198,29 @@ html,body{height:100%;margin:0;font-family: 'Segoe UI', Roboto, 'Noto Sans KR', 
 }
 
 /* 간단한 모달(게임설명/설정) 스타일 */
-.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#0b0b0b;border-radius:8px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,0.8);max-width:640px;width:90%;color:var(--accent)}
+.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#0b0b0b;border-radius:8px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,0.8);max-width:640px;width:90%;color:var(--accent);z-index:10000}
 .modal h2{margin-top:0;font-size:20px}
-.modal .close{display:inline-block;margin-top:12px;padding:6px 10px;background:#222;border:none;color:#fff;border-radius:6px;cursor:pointer}
+.modal .close,
+.modal .settings-save {
+  display:inline-block;
+  margin-top:12px;
+  padding:6px 10px;
+  background:#222;
+  border:none;
+  color:#fff;
+  border-radius:6px;
+  cursor:pointer;
+}
+
+/* backdrop used by settings modal to block interaction with the background */
+.modal-backdrop{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 9998;
+}
+
+.modal.settings-modal{ z-index: 9999; }
 
 /* 반응형: 작은 화면에서 bg 이미지를 중앙/상단으로 조정 */
 @media (max-width:900px){

@@ -30,7 +30,12 @@ document.addEventListener('DOMContentLoaded', function(){
   });
 
   btnHow && btnHow.addEventListener('click', function(){
-    showModal('게임 설명', '<p>화살표 키로 플레이어를 이동하여 장애물을 피하세요. 게임시작을 누르면 캔버스가 활성화됩니다.</p>');
+    // Delegate explanation UI to explanation.js if available, otherwise fallback to simple modal
+    if (window.Explanation && typeof window.Explanation.open === 'function') {
+      window.Explanation.open();
+    } else {
+      showModal('게임 설명', '<p>오류가 발생했습니다. 다시 시도해주세요.</p>');
+    }
   });
 
   btnSettings && btnSettings.addEventListener('click', function(){
@@ -38,7 +43,7 @@ document.addEventListener('DOMContentLoaded', function(){
     if (window.Settings && typeof window.Settings.open === 'function') {
       window.Settings.open();
     } else {
-      showModal('환경설정', '<p>현재 설정 항목은 없습니다. 추후 난이도/사운드 옵션을 추가할 수 있습니다.</p>');
+      showModal('환경설정', '<p>오류가 발생했습니다. 다시 시도해주세요.</p>');
     }
   });
 
