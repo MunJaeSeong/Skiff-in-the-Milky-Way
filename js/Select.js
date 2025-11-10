@@ -151,6 +151,19 @@
 	document.addEventListener('DOMContentLoaded', () => {
 		renderStageList('stageList');
 
+		// wire customize button to open the Custom UI if available
+		const customizeBtn = document.getElementById('customizeBtn');
+		if (customizeBtn) {
+			customizeBtn.addEventListener('click', function(){
+				if (window.Custom && typeof window.Custom.open === 'function') {
+					window.Custom.open();
+				} else {
+					// fallback: simple alert for now
+					try { alert('커스터마이징 기능을 사용할 수 없습니다.'); } catch(e){}
+				}
+			});
+		}
+
 		// Expose for debugging and future wiring
 		window.StageSelect = window.StageSelect || {};
 		window.StageSelect.stages = stages;

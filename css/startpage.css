@@ -201,7 +201,8 @@ html,body{height:100%;margin:0;font-family: 'Segoe UI', Roboto, 'Noto Sans KR', 
 .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#0b0b0b;border-radius:8px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,0.8);max-width:640px;width:90%;color:var(--accent);z-index:10000}
 .modal h2{margin-top:0;font-size:20px}
 .modal .close,
-.modal .settings-save {
+.modal .settings-save,
+.modal .custom-save {
   display:inline-block;
   margin-top:12px;
   padding:6px 10px;
