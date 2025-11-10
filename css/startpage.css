@@ -12,14 +12,59 @@ html,body{height:100%;margin:0;font-family: 'Segoe UI', Roboto, 'Noto Sans KR', 
 /* 시작 화면 전체를 덮는 오버레이 */
 .start-screen{
   position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-  background-image: url('../bg.png'); /* bg.png는 프로젝트 루트(css 폴더 기준 상위) 에 위치시킵니다 */
-  background-position: left center; background-repeat:no-repeat; background-size: auto 100%;
+  background-image: url('../assets/bg.png'); /* bg.png는 assets 파일 안에*/
+  /* nudge background slightly to the right for better composition */
+  background-position: 15% center; background-repeat:no-repeat; background-size: auto 100%;
 }
 
 /* 배경 위에 어두운 그라데이션을 추가하여 메뉴/텍스트 가독성 확보 */
 .start-screen .start-overlay{
-  position:relative;width:100%;height:100%;background:linear-gradient(90deg, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.45) 70%, rgba(0,0,0,0.0) 100%);
+  position:relative;width:100%;height:100%;
+  /* Central brightening: soft radial gradient that is brighter in the center
+     and darkens toward the edges to focus attention on the middle */
+  background: radial-gradient(circle at center,
+    rgba(255,255,255,0.08) 10%,
+    rgba(255,255,255,0.02) 40%,
+    rgba(0,0,0,0.12) 50%,
+    rgba(0,0,0,0.5) 70%,
+    rgba(0,0,0,0.9) 100%);
   display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:40px 80px;box-sizing:border-box;
+}
+
+/* ensure overlay sits above background stars */
+.start-screen .start-overlay { z-index: 1 }
+
+/* Background star field: small glowing dots that gently twinkle (no expansion) */
+.bg-stars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0; /* sits above background image but under .start-overlay */
+  overflow: hidden;
+}
+
+.bg-star {
+  position: absolute;
+  /* base doubled: original 2px -> now 4px for better visibility */
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, rgba(255,255,255,0.95) 40%, rgba(255,255,255,0.45) 70%, rgba(255,255,255,0) 100%);
+  filter: drop-shadow(0 0 8px rgba(255,255,255,0.95));
+  opacity: 0.8;
+  transform: translateZ(0);
+  animation: twinkleSimple var(--dur, 2.6s) ease-in-out var(--delay, 0s) infinite alternate;
+}
+
+/* allow some size variety (doubled from previous sizes) */
+.bg-star.small { width:2px; height:2px; filter: drop-shadow(0 0 5px rgba(255,255,255,0.85)); }
+.bg-star.med { width:4px; height:4px; }
+.bg-star.large { width:6px; height:6px; filter: drop-shadow(0 0 12px rgba(255,255,255,1)); }
+
+@keyframes twinkleSimple {
+  0% { opacity: 0.15; }
+  50% { opacity: 1; }
+  100% { opacity: 0.15; }
 }
 
 /* 타이틀(오른쪽 상단 영역) */

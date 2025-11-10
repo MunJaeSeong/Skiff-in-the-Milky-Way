@@ -33,8 +33,8 @@
     </div>
 
     <!-- 게임 캔버스: 시작 화면이 가려진 후 표시됩니다 -->
-    <canvas id="gameSelectCanvas"></canvas>
-    <canvas id="gameCanvas"></canvas>
+  <canvas id="gameSelectCanvas" tabindex="0" aria-label="스테이지 선택 캔버스"></canvas>
+  <canvas id="gameCanvas" tabindex="0" aria-label="게임 캔버스" style="display:none;"></canvas>
 
     <!-- Game Select UI: customization button, practice mode checkbox, and stage selector -->
     <div id="gameSelectUI" class="select-ui" aria-hidden="true">
@@ -55,7 +55,7 @@
         </div>
       </section>
     </div>
-    <script src="js/main.js"></script>
-    <script src="js/Select.js"></script>
+    <script src="js/main.js" defer></script>
+    <script src="js/Select.js" defer></script>
   </body>
 </html>
