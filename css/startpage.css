@@ -165,10 +165,37 @@ html,body{height:100%;margin:0;font-family: 'Segoe UI', Roboto, 'Noto Sans KR', 
 .main-menu{display:flex;flex-direction:column;gap:18px;align-items:flex-end}
 .menu-item{background:transparent;border:none;color:var(--muted);font-size:20px;padding:8px 14px;cursor:pointer;transition:all .18s;}
 .menu-item:hover{color:var(--accent);transform:translateX(-6px)}
-.menu-item.primary{color:var(--accent);font-weight:700;font-size:22px}
 
-/* 메뉴 버튼 시각적 표시(작은 화살표) */
-.menu-item.primary::before{content:'▶';margin-right:8px;color:var(--accent)}
+/* 메뉴 버튼 시각적 표시(작은 화살표)
+   Show the arrow only on hover or keyboard focus next to the hovered/focused menu item.
+   This places the arrow to the left of whichever menu item is active, rather than
+   keeping it fixed next to the primary button. */
+.menu-item::before{
+  content: '▶';
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--accent);
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity .18s ease, transform .18s ease;
+}
+.menu-item:hover::before,
+.menu-item:focus::before,
+.menu-item:focus-visible::before{
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* keep the primary button visually emphasized but keep same typographic weight/size as other items */
+.menu-item.primary{color:var(--muted);font-weight:400;font-size:20px}
+
+/* Ensure hovered/focused state still brightens for primary too.
+   This is explicit so it wins over the base .menu-item.primary color. */
+.menu-item.primary:hover,
+.menu-item.primary:focus,
+.menu-item.primary:focus-visible {
+  color: var(--accent);
+}
 
 /* 간단한 모달(게임설명/설정) 스타일 */
 .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#0b0b0b;border-radius:8px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,0.8);max-width:640px;width:90%;color:var(--accent)}
