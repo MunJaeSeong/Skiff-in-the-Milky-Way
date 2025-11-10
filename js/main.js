@@ -34,7 +34,12 @@ document.addEventListener('DOMContentLoaded', function(){
   });
 
   btnSettings && btnSettings.addEventListener('click', function(){
-    showModal('환경설정', '<p>현재 설정 항목은 없습니다. 추후 난이도/사운드 옵션을 추가할 수 있습니다.</p>');
+    // Delegate settings UI to setting.js if available, otherwise fallback to simple modal
+    if (window.Settings && typeof window.Settings.open === 'function') {
+      window.Settings.open();
+    } else {
+      showModal('환경설정', '<p>현재 설정 항목은 없습니다. 추후 난이도/사운드 옵션을 추가할 수 있습니다.</p>');
+    }
   });
 
   // 모달 생성/표시 함수
