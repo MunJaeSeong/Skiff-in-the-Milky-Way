@@ -63,6 +63,8 @@
       this.canvas = c;
       this.ctx = c.getContext('2d');
       this.resize();
+      // load style variables from CSS (allows theming via css/game.css)
+      try{ this._loadStyles(); }catch(e){ console.warn('Failed to load styles:', e); }
       // 브라우저 크기 변경 시 캔버스 재조정
       window.addEventListener('resize', ()=> this.resize());
 
@@ -77,6 +79,34 @@
       // 전역에 Game 레퍼런스 설정
       window.Game = window.Game || this;
       return this;
+    },
+
+    /** 읽어온 CSS custom properties를 JS에서 쓸 수 있도록 파싱하여 저장합니다 */
+    _loadStyles(){
+      const cs = getComputedStyle(document.documentElement);
+      const parseNum = (name, fallback) => {
+        const v = cs.getPropertyValue(name).trim();
+        if (!v) return fallback;
+        const f = parseFloat(v);
+        return Number.isFinite(f) ? f : fallback;
+      };
+      this.styles = {
+        panelFraction: parseNum('--hud-panel-fraction', 0.25),
+        pad: parseNum('--hud-pad', 14),
+        gameBg: cs.getPropertyValue('--game-bg') || '#000022',
+        panelBg: cs.getPropertyValue('--hud-panel-bg') || '#0b1220',
+        innerBg: cs.getPropertyValue('--hud-inner-bg') || '#12202b',
+        accent: cs.getPropertyValue('--hud-accent') || '#ef4444',
+        accentBg: cs.getPropertyValue('--hud-accent-bg') || '#22303f',
+        textColor: cs.getPropertyValue('--hud-text-color') || '#fff',
+        labelFont: cs.getPropertyValue('--hud-label-font') || '16px sans-serif',
+        scoreFont: cs.getPropertyValue('--hud-score-font') || '28px monospace',
+        hpBorder: cs.getPropertyValue('--hp-border-color') || '#274050',
+        sdPlaceholder: cs.getPropertyValue('--sd-placeholder') || '#24313a',
+        barWidthVBase: parseNum('--hp-bar-base-width', 24),
+        sdBase: parseNum('--sd-base-size', 64),
+        sdScale: parseNum('--sd-scale', 2.5),
+      };
     },
 
     /** 캔버스와 내부 너비/높이 동기화 */
@@ -235,26 +265,32 @@
      * - a, b는 {x,y,w,h} 또는 {x,y,r} 형태를 예상
      */
     rectIntersect(a,b){
-      const ax1 = a.x - (a.w||a.r||0);
-      const ay1 = a.y - (a.h||a.r||0);
-      const aw = a.w || (a.r? a.r*2:0);
-      const ah = a.h || (a.r? a.r*2:0);
-      const bx1 = b.x - (b.w||b.r||0);
-      const by1 = b.y - (b.h||b.r||0);
-      const bw = b.w || (b.r? b.r*2:0);
-      const bh = b.h || (b.r? b.r*2:0);
-      return !(ax1+aw < bx1 || bx1+bw < ax1 || ay1+ah < by1 || by1+bh < ay1);
+      // Treat entity coordinates as centers (x,y are centers).
+      // If w/h are provided they represent full width/height.
+      // If r is provided it's a radius and full size is r*2.
+      const aw = a.w || (a.r? a.r*2 : 0);
+      const ah = a.h || (a.r? a.r*2 : 0);
+      const bw = b.w || (b.r? b.r*2 : 0);
+      const bh = b.h || (b.r? b.r*2 : 0);
+      const ax1 = a.x - (aw / 2);
+      const ay1 = a.y - (ah / 2);
+      const bx1 = b.x - (bw / 2);
+      const by1 = b.y - (bh / 2);
+      return !(ax1 + aw < bx1 || bx1 + bw < ax1 || ay1 + ah < by1 || by1 + bh < ay1);
     },
 
     /** 렌더 단계: 배경, 플레이어, 적, 탄환, 간단 HUD */
     render(){
       const ctx = this.ctx;
       if (!ctx) return;
-      ctx.clearRect(0,0,this.width,this.height);
+  ctx.clearRect(0,0,this.width,this.height);
 
-      // compute panel and game area sizes
-      const panelW = Math.floor(this.width * 0.25);
-      const gameAreaW = Math.max(100, this.width - panelW);
+  // ensure styles are loaded (in case CSS changed dynamically)
+  if (!this.styles) this._loadStyles();
+  const pad = this.styles.pad;
+  // compute panel and game area sizes; panelFraction read from CSS variables
+  const panelW = Math.floor(this.width * (this.styles.panelFraction || 0.25));
+  const gameAreaW = Math.max(100, this.width - panelW);
 
       // draw gameplay area (clipped to left region)
       ctx.save();
@@ -262,14 +298,24 @@
       ctx.rect(0, 0, gameAreaW, this.height);
       ctx.clip();
 
-      // gameplay background
-      ctx.fillStyle = '#000022';
-      ctx.fillRect(0, 0, gameAreaW, this.height);
+  // gameplay background
+  ctx.fillStyle = this.styles.gameBg || '#000022';
+  ctx.fillRect(0, 0, gameAreaW, this.height);
 
       // draw player and entities inside gameplay area
       try{ if (this.player && this.player.draw) this.player.draw(ctx); }catch(e){ console.error(e); }
       this.enemies.forEach(e => { if (e.draw) e.draw(ctx); else { ctx.fillStyle='red'; ctx.fillRect(e.x-10,e.y-10,20,20); } });
-      this.bullets.forEach(b => { if (b.draw) b.draw(ctx); else { ctx.fillStyle='yellow'; ctx.fillRect(b.x-3,b.y-6,6,12); } });
+      this.bullets.forEach(b => {
+        if (b.draw) b.draw(ctx);
+        else {
+          // default bullet rendering: draw a filled circle using radius r if available
+          ctx.fillStyle = 'yellow';
+          const r = b.r || Math.max(3, Math.floor(((b.w||0) + (b.h||0)) / 4));
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, r, 0, Math.PI*2);
+          ctx.fill();
+        }
+      });
 
       if (this.stageModule && typeof this.stageModule.draw === 'function'){
         try{ this.stageModule.draw(ctx); }catch(e){}
@@ -277,42 +323,91 @@
 
       ctx.restore();
 
-      // draw HUD panel on the right
-      const panelX = gameAreaW;
-      ctx.fillStyle = '#0b1220';
-      ctx.fillRect(panelX, 0, panelW, this.height);
+  // Boss HP bar: draw a horizontal, white "neon" bar across the top of the gameplay area
+  const boss = this.enemies.find(e => e && e.isBoss);
+  if (boss && typeof boss.hp === 'number'){
+    const bx = Math.max(8, pad);
+    const by = 8;
+    const bw = Math.max(120, gameAreaW - bx*2);
+    const bh = 14;
+    const bmax = (typeof boss.maxHp === 'number') ? boss.maxHp : Math.max(1, boss.hp);
+    const bpct = Math.max(0, Math.min(1, boss.hp / bmax));
+    ctx.save();
+    // subtle background
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(bx, by, bw, bh);
+    // glowing white fill
+    ctx.shadowColor = 'rgba(255,255,255,0.95)';
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = 'rgba(255,255,255,0.98)';
+    ctx.fillRect(bx, by, Math.floor(bw * bpct), bh);
+    // outline
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, bw, bh);
+    ctx.restore();
+  }
 
-      const pad = 14;
-      const textX = panelX + pad;
-      let y = pad + 20;
+  // draw HUD panel on the right
+  const panelX = gameAreaW;
+  ctx.fillStyle = this.styles.panelBg || '#0b1220';
+  ctx.fillRect(panelX, 0, panelW, this.height);
 
-      ctx.fillStyle = '#fff';
-      ctx.font = '16px sans-serif';
-      ctx.fillText('SCORE', textX, y);
-      ctx.font = '28px monospace';
-      ctx.fillText(String(this.score || 0), textX, y + 36);
+  const textX = panelX + pad;
+  let y = pad + 20;
 
-      // HP
-      y += 100;
-      ctx.font = '14px sans-serif';
-      ctx.fillStyle = '#fff';
-      ctx.fillText('HP', textX, y);
-      y += 12;
-      const barW = panelW - pad*2;
-      const barH = 18;
-      const hp = (this.player && typeof this.player.hp === 'number') ? this.player.hp : 0;
-      const maxHp = (this.player && typeof this.player.maxHp === 'number') ? this.player.maxHp : 10;
-      const pct = Math.max(0, Math.min(1, hp / (maxHp || 1)));
-      // bar BG
-      ctx.fillStyle = '#22303f';
-      ctx.fillRect(textX, y + 8, barW, barH);
-      // bar FG
-      ctx.fillStyle = '#ef4444';
-      ctx.fillRect(textX, y + 8, Math.floor(barW * pct), barH);
-      // hp text
-      ctx.fillStyle = '#fff';
-      ctx.font = '13px sans-serif';
-      ctx.fillText(hp + ' / ' + maxHp, textX + 6, y + 8 + barH - 4);
+  // (score is drawn to the right of the vertical HP bar)
+
+  // Vertical HP bar (left side of HUD panel) — 위에서부터 채워지는 방식
+  const hp = (this.player && typeof this.player.hp === 'number') ? this.player.hp : 0;
+  const maxHp = (this.player && typeof this.player.maxHp === 'number') ? this.player.maxHp : 10;
+  const pct = Math.max(0, Math.min(1, hp / (maxHp || 1)));
+
+  const barWidthVBase = this.styles.barWidthVBase || 24; // base width from CSS
+  // reduce width to 0.7x of the base, but keep a small minimum for visibility
+  const barWidthV = Math.max(8, Math.floor(barWidthVBase * 0.7));
+  const barX = panelX + pad;
+  const barY = pad;
+  const barHeightV = Math.max(80, this.height - pad*2);
+  // background
+  ctx.fillStyle = this.styles.innerBg || '#12202b';
+  ctx.fillRect(barX, barY, barWidthV, barHeightV);
+  // filled portion (from top downward)
+  const fillH = Math.floor(barHeightV * pct);
+  ctx.fillStyle = this.styles.accent || '#ef4444';
+  ctx.fillRect(barX, barY, barWidthV, fillH);
+  // border
+  ctx.strokeStyle = this.styles.hpBorder || '#274050';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(barX, barY, barWidthV, barHeightV);
+
+  // Score text moved to the right of the vertical HP bar (바를 스코어에 딱 붙임)
+  // SD 이미지 (HP 바 바로 오른쪽)
+  // SD portrait: base size then scale (configured via CSS var --sd-scale), but cap to available space
+  const baseSd = Math.min(this.styles.sdBase || 64, barHeightV, panelW - (barWidthV + pad*2));
+  let sdSize = Math.floor(baseSd * (this.styles.sdScale || 2.5));
+  // ensure it doesn't overflow the available width or height of the HUD
+  sdSize = Math.min(sdSize, Math.max(8, panelW - (barWidthV + pad*2)), barHeightV);
+  const sdX = barX + barWidthV + 6;
+  // place SD portrait aligned to the bottom of the HUD panel
+  const sdY = barY + barHeightV - sdSize;
+  if (this.player && this.player.sdSprite && this.player.sdSprite.complete && !this.player.sdSprite._broken && this.player.sdSprite.naturalWidth > 0){
+    try{ ctx.drawImage(this.player.sdSprite, sdX, sdY, sdSize, sdSize); }catch(e){}
+  } else {
+    // placeholder box if SD image not loaded
+    ctx.fillStyle = this.styles.sdPlaceholder || '#24313a';
+    ctx.fillRect(sdX, sdY, sdSize, sdSize);
+  }
+
+  // Score text placed immediately to the right of the SD portrait
+  const scoreX = sdX + sdSize + 6;
+  let sy = pad + 20;
+  ctx.font = this.styles.labelFont || '16px sans-serif';
+  ctx.fillStyle = this.styles.textColor || '#fff';
+  ctx.fillText('SCORE', scoreX, sy);
+  ctx.font = this.styles.scoreFont || '28px monospace';
+  ctx.fillText(String(this.score || 0), scoreX, sy + 36);
     },
 
     // 엔티티 생성 헬퍼들 (스테이지/플레이어가 호출)

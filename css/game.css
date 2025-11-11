@@ -1,0 +1,27 @@
+:root{
+  /* HUD / layout */
+  --hud-panel-fraction: 0.25; /* fraction of canvas width reserved for HUD */
+  --hud-pad: 14;
+
+  /* Colors */
+  --game-bg: #000022;
+  --hud-panel-bg: #0b1220;
+  --hud-inner-bg: #12202b;
+  --hud-accent: #ef4444; /* HP fill */
+  --hud-accent-bg: #22303f; /* HP BG */
+  --hp-border-color: #274050;
+  --sd-placeholder: #24313a;
+  --hud-text-color: #ffffff;
+
+  /* Fonts */
+  --hud-label-font: 16px sans-serif;
+  --hud-score-font: 28px monospace;
+
+  /* Sizes */
+  --hp-bar-base-width: 24; /* px base for HP bar before any scaling */
+  --sd-base-size: 64; /* base suggested SD portrait size */
+  --sd-scale: 2.5; /* SD portrait scale factor */
+}
+
+/* Optional canvas container styles if you want to control layout via CSS */
+#gameCanvas { display:block; }

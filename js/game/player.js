@@ -28,12 +28,16 @@
       this.hp = 10; // 플레이어 체력
   // 최대 체력 보관 (기본값은 생성 시 hp)
   this.maxHp = this.hp;
-      this.cooldown = 0; // 발사 쿨타임
-      this.fireRate = 0.25; // 초 단위 발사 간격
+  this.cooldown = 0; // 발사 쿨타임
+  // 발사 속도: 기존보다 3배 빠르게 (발사 간격을 1/3로). 원래 0.25 -> now ~0.0833s
+  this.fireRate = 0.25 / 3;
       // 기본 발사체 정보: 이미지 경로, 속도, 데미지
-      this.projectile = { img: null, speed: -600, damage: 1 };
+  // projectile defaults: ensure damage is 1
+  this.projectile = { img: null, speed: -600, damage: 1 };
       this.sprite = null; // 캐릭터 이미지(Image 객체)
       this.shipSprite = null; // 조각배(스킨) 이미지(Image 객체)
+      this.sdSprite = null; // 캐릭터 SD 이미지
+      this.characterId = null; // 선택된 캐릭터 id (raw)
     }
 
     // 후보 경로 생성 헬퍼: id로 들어온 값이 경로인지, 단순 id인지에 따라
@@ -103,6 +107,8 @@
         if (candidates.length) img.src = candidates[0];
         else img.src = custom.character; // fallback
         this.sprite = img;
+        // store raw id for SD lookup
+        this.characterId = custom.character;
       }
       // ship/skiff 필드가 이미지 경로일 경우 (UI에서 'skiff'로 저장한다면 이 필드를 사용)
       if ((custom.ship && typeof custom.ship === 'string') || (custom.skiff && typeof custom.skiff === 'string')){
@@ -126,6 +132,41 @@
         if (candidates.length) img.src = candidates[0];
         else img.src = id;
         this.shipSprite = img;
+      }
+      // SD 버전 이미지 자동 로드: assets/character/{id}_SD.png 등의 후보를 시도
+      if (this.characterId && typeof this.characterId === 'string'){
+        const id = this.characterId;
+        const sdCandidates = [];
+        if (id.startsWith('assets/') || id.match(/\.[a-zA-Z0-9]{2,4}$/)){
+          // if full path with extension, try inserting _SD before extension
+          const m = id.match(/(.+)(\.[a-zA-Z0-9]{2,4})$/);
+          if (m) sdCandidates.push(`${m[1]}_SD${m[2]}`);
+          sdCandidates.push(id + '_SD.png');
+        } else {
+          const cap = id.charAt(0).toUpperCase() + id.slice(1);
+          const lower = id.toLowerCase();
+          sdCandidates.push(`assets/character/${id}_SD.png`);
+          sdCandidates.push(`assets/character/${cap}_SD.png`);
+          sdCandidates.push(`assets/character/${lower}_SD.png`);
+          sdCandidates.push(`assets/character/${id}_SD.jpg`);
+        }
+        const sdimg = new Image();
+        sdimg._broken = false;
+        sdimg._candidates = sdCandidates;
+        sdimg._ci = 0;
+        sdimg.onload = () => { sdimg._broken = false; };
+        sdimg.onerror = function(){
+          const self = this;
+          self._ci = (self._ci || 0) + 1;
+          if (self._candidates && self._ci < self._candidates.length){
+            self.src = self._candidates[self._ci];
+          } else {
+            self._broken = true;
+          }
+        };
+        if (sdCandidates.length) sdimg.src = sdCandidates[0];
+        else sdimg.src = `assets/character/${id}_SD.png`;
+        this.sdSprite = sdimg;
       }
       // projectile 필드 처리: 문자열 또는 객체 지원
       if (custom.projectile){
@@ -183,12 +224,12 @@
       const proj = {
         x: this.x,
         y: this.y - 20,
-        w: 6, h: 12,
+        r: 4,
         vy: this.projectile.speed || -400,
         owner: 'player',
         damage: this.projectile.damage || 1,
-        update(dt){ this.y += this.vy * dt; if (this.y < -20) this.dead = true; },
-        draw(ctx){ ctx.fillStyle='yellow'; ctx.fillRect(this.x-3, this.y-6, 6, 12); }
+        update(dt){ this.y += this.vy * dt; if (this.y < -40) this.dead = true; },
+        draw(ctx){ ctx.fillStyle='yellow'; ctx.beginPath(); ctx.arc(this.x, this.y, this.r || 4, 0, Math.PI*2); ctx.fill(); }
       };
       this.game.spawnPlayerBullet(proj);
     }
