@@ -437,20 +437,50 @@
 				_ult1(g){ console.log('ULTIMATE 1 (placeholder)'); /* complex pattern to be added later */ },
 				_ult2(g){ console.log('ULTIMATE 2 (placeholder)'); /* complex pattern to be added later */ },
 				// draw: 보스 표시 (가로로 긴 타원 + 텍스트)
+				// draw: 보스 표시 — 이미지로 대체 (hit 판정은 여전히 this.w/this.h 사용)
 				draw(ctx){
-					ctx.fillStyle = 'purple';
-					// horizontal ellipse: rx=80, ry=40
-					ctx.beginPath();
-					if (typeof ctx.ellipse === 'function') ctx.ellipse(this.x, this.y, 80, 40, 0, 0, Math.PI*2);
-					else ctx.arc(this.x, this.y, 80, 0, Math.PI*2); // fallback (circle)
-					ctx.fill();
-					ctx.fillStyle='white';
-					ctx.textAlign = 'center';
-					ctx.textBaseline = 'middle';
-					ctx.fillText('BOSS', this.x, this.y);
+					try{
+						// renderW/renderH는 실제 충돌 크기(this.w/this.h)와 별개로 화면에 크게 그리기 위해 사용
+						const rw = (typeof this.renderW === 'number') ? this.renderW : 480;
+						const rh = (typeof this.renderH === 'number') ? this.renderH : 360;
+						if (this.sprite && this.sprite.complete && !this.sprite._broken && this.sprite.naturalWidth > 0){
+							// draw centered
+							ctx.drawImage(this.sprite, this.x - rw/2, this.y - rh/2, rw, rh);
+						} else {
+							// fallback: big purple ellipse if image not yet available
+							ctx.save();
+							ctx.fillStyle = 'purple';
+							if (typeof ctx.ellipse === 'function') ctx.ellipse(this.x, this.y, rw/2, rh/2, 0, 0, Math.PI*2);
+							else ctx.beginPath(), ctx.arc(this.x, this.y, Math.max(rw, rh)/2, 0, Math.PI*2);
+							ctx.fill();
+							ctx.restore();
+						}
+					}catch(e){
+						// if drawing fails, fallback to original simple draw
+						ctx.fillStyle = 'purple';
+						ctx.beginPath();
+						if (typeof ctx.ellipse === 'function') ctx.ellipse(this.x, this.y, 80, 40, 0, 0, Math.PI*2);
+						else ctx.arc(this.x, this.y, 80, 0, Math.PI*2);
+						ctx.fill();
+						ctx.fillStyle='white';
+						ctx.textAlign = 'center';
+						ctx.textBaseline = 'middle';
+						ctx.fillText('BOSS', this.x, this.y);
+					}
 				}
 			};
 			boss.game = this.game;
+			// large render size (visual only). Keep this.w/this.h for collision unchanged.
+			boss.renderW = 560; // very large width for dramatic effect
+			boss.renderH = 420; // very large height
+			// preload boss sprite (assets/stage1_boss.png)
+			try{
+				const img = new Image();
+				img.onload = function(){ img._broken = false; };
+				img.onerror = function(){ img._broken = true; };
+				img.src = 'assets/stage/stage1_boss.png';
+				boss.sprite = img;
+			}catch(e){ boss.sprite = null; }
 			this.game.spawnBoss(boss);
 		},
 
