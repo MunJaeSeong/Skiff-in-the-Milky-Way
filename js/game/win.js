@@ -255,7 +255,16 @@
         if (selectUI) { selectUI.style.display = ''; selectUI.removeAttribute('aria-hidden'); }
       }catch(e){ console.error('Next failed', e); }
     };
-    nextBtn.addEventListener('click', function(){ doNext(); });
+    // If practice mode is active, remove/hide the Next button because practice runs should not progress
+    try{
+      const practiceActive = (Game && Game.practiceMode) || (window.StageSelect && window.StageSelect.practice);
+      if (practiceActive){
+        try{ if (nextBtn && nextBtn.parentNode) nextBtn.parentNode.removeChild(nextBtn); }
+        catch(e){}
+      } else {
+        nextBtn.addEventListener('click', function(){ doNext(); });
+      }
+    }catch(e){ nextBtn.addEventListener('click', function(){ doNext(); }); }
 
     // exit behavior: hide overlay and return to start screen
     exitBtn.addEventListener('click', function(){

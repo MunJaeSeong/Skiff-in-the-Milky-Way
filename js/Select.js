@@ -191,6 +191,8 @@
 							canvasEl.style.width = '100vw';
 							canvasEl.style.height = '100vh';
 						}
+						// set practice mode flag on Game before starting
+						try{ window.Game.practiceMode = !!(window.StageSelect && window.StageSelect.practice); }catch(e){}
 						// 초기화 및 스테이지 시작
 						if (!window.Game.canvas) window.Game.init && window.Game.init('gameCanvas');
 						window.Game.startStage && window.Game.startStage(stageId).catch(console.error);
@@ -209,6 +211,7 @@
 									canvasEl2.style.width = '100vw';
 									canvasEl2.style.height = '100vh';
 								}
+								try{ window.Game.practiceMode = !!(window.StageSelect && window.StageSelect.practice); }catch(e){}
 								window.Game.init && window.Game.init('gameCanvas');
 								window.Game.startStage && window.Game.startStage(stageId).catch(console.error);
 							} else {
@@ -349,6 +352,80 @@
 			selectUIParent.appendChild(container);
 		})();
 
+			// Move the practice mode checkbox/label to sit immediately under the stage list
+			(function placePracticeToggle(){
+				let practice = document.querySelector('.practice-label');
+				// If it doesn't exist in DOM, create a simple labeled checkbox so localization can update it
+				if (!practice){
+					practice = document.createElement('label');
+					practice.className = 'practice-label';
+					const input = document.createElement('input');
+					input.type = 'checkbox';
+					input.id = 'practiceModeCheckbox';
+					practice.appendChild(input);
+					practice.appendChild(document.createTextNode(' 연습모드'));
+				}
+
+				// create container if missing (append to the select UI so it is only visible there)
+				const selectUIParent = document.getElementById('gameSelectUI') || null;
+				let pc = document.getElementById('select-practice-container');
+				if (!pc){
+					pc = document.createElement('div');
+					pc.id = 'select-practice-container';
+					pc.style.cssText = 'position:absolute;left:0;top:0;z-index:9999;pointer-events:auto;';
+					if (selectUIParent) selectUIParent.appendChild(pc); else document.body.appendChild(pc);
+				}
+				// move the practice element into our container (appendChild will relocate if already present)
+				pc.appendChild(practice);
+
+				function position(){
+					try{
+						const ul = document.getElementById('stageList');
+						const wrapper = ul ? ul.parentElement : null;
+						if (wrapper){
+							const r = wrapper.getBoundingClientRect();
+							// position 12px from left edge of wrapper and 8px below its bottom
+							pc.style.left = Math.max(8, Math.round(r.left + 12)) + 'px';
+							pc.style.top = Math.max(8, Math.round(r.bottom + 8)) + 'px';
+							// ensure we clear bottom/right anchors if previously set
+							pc.style.right = '';
+							pc.style.bottom = '';
+						} else {
+							// fallback to bottom-left of viewport
+							pc.style.left = '12px';
+							pc.style.top = '';
+							pc.style.bottom = '12px';
+						}
+					}catch(e){}
+				}
+
+				// initial position and keep in sync on resize
+				setTimeout(position, 20);
+				window.addEventListener('resize', position);
+				// if supported, observe wrapper size changes to reposition
+				try{
+					const ul = document.getElementById('stageList');
+					const wrapper = ul ? ul.parentElement : null;
+					if (wrapper && typeof ResizeObserver !== 'undefined'){
+						const ro = new ResizeObserver(position);
+						ro.observe(wrapper);
+					}
+				}catch(e){}
+
+				// wire the checkbox state to window.StageSelect.practice so other code can read it
+				try{
+					const input = practice.querySelector('input[type="checkbox"]') || document.getElementById('practiceModeCheckbox');
+					if (input){
+						// set initial state from existing StageSelect if present
+						window.StageSelect = window.StageSelect || {};
+						input.checked = !!window.StageSelect.practice;
+						input.addEventListener('change', function(){
+							window.StageSelect.practice = !!input.checked;
+						});
+					}
+				}catch(e){}
+			})();
+
 		// Expose for debugging and future wiring
 		window.StageSelect = window.StageSelect || {};
 		window.StageSelect.stages = stages;
@@ -356,6 +433,10 @@
 		window.StageSelect.getElement = () => document.getElementById('stageList');
 		// expose a localization refresh so callers (e.g. main.js) can force-update labels
 		if (typeof updateLocalization === 'function') window.StageSelect.localize = updateLocalization;
+
+			// ensure StageSelect.practice is propagated to Game when starting a stage
+			// (startStageById will pick this up; set default false if not present)
+			if (typeof window.StageSelect.practice === 'undefined') window.StageSelect.practice = false;
 	});
 
 })();
