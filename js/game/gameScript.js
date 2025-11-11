@@ -273,6 +273,15 @@
       if (this.player && typeof this.player.applyCustomization === 'function'){
         this.player.applyCustomization(custom);
       }
+      // If practice mode is enabled, grant the player a very large HP pool
+      try{
+        if (this.practiceMode){
+          if (this.player){
+            this.player.maxHp = 100000;
+            this.player.hp = 100000;
+          }
+        }
+      }catch(e){}
 
       return this.loadStageScript(stageId).then((stageModule) => {
         // 스테이지 모듈 초기화
