@@ -35,6 +35,25 @@
       characters: { rea: '레아', noa: '노아', noel: '노엘' },
       ships: { woodskiff: '나무 조각배' },
       projectiles: { basic: '기본 샷', fast: '빠른 발사', heavy: '강력 탄환', energy: '에너지 펄스', plasma: '플라즈마', quantum: '퀀텀' }
+      ,
+      explanation: {
+        prevAria: '이전 페이지',
+        nextAria: '다음 페이지',
+        pages: {
+          about: '설명',
+          controls: '조작키',
+          'char-rea': '레아',
+          'char-noa': '노아',
+          'char-noel': '노엘'
+        },
+        content: {
+          about: '<ol><li>날아오는 탄막을 피해 몬스터를 처치하세요.</li><li>몬스터의 체력은 화면 상단의 흰색 막대로 표시됩니다.</li><li>플레이어의 체력은 우측 스코어 섹션의 빨간 막대로 표시됩니다.</li></ol>',
+          controls: '<ol><li>←키(방향키) -- 왼쪽으로 이동</li><li>→키(방향키) -- 오른쪽으로 이동</li><li>↑키(방향키) -- 위로 이동</li><li>↓키(방향키) -- 아래로 이동</li><li>Ctrl 키 -- 느리게 이동(속도의 절반)</li><li>Shift 키 -- 빠르게 이동(속도의 2배)</li><li>Z 키 -- 플레이어 피격 범위 확인</li></ol>',
+          'char-rea': '<h3>레아</h3><p>레아는 균형 잡힌 공격형 캐릭터로, 기본 샷의 연사력이 우수합니다. 기동성이 좋아 근거리 전투에 유리합니다.</p>',
+          'char-noa': '<h3>노아</h3><p>노아는 장거리 전투에 특화된 캐릭터로, 느리지만 강력한 발사체를 사용합니다. 전략적 위치선정이 중요합니다.</p>',
+          'char-noel': '<h3>노엘</h3><p>노엘은 특수 기능을 보유한 서포트형 캐릭터로 아군 보조 및 필드 제어에 능합니다.</p>'
+        }
+      }
     },
     en: {
       start: 'Start',
@@ -57,6 +76,26 @@
       characters: { rea: 'Rea', noa: 'Noa', noel: 'Noel' },
       ships: { woodskiff: 'Wood Skiff' },
       projectiles: { basic: 'Basic Shot', fast: 'Fast Bolt', heavy: 'Heavy Shell', energy: 'Energy Pulse', plasma: 'Plasma Beam', quantum: 'Quantum Ray' }
+      ,
+      explanation: {
+        prevAria: 'Previous page',
+        nextAria: 'Next page',
+        pages: {
+          about: 'About',
+          controls: 'Controls',
+          'char-rea': 'Rea',
+          'char-noa': 'Noa',
+          'char-noel': 'Noel'
+        }
+        ,
+        content: {
+          about: '<ol><li>Dodge incoming bullet patterns and defeat monsters.</li><li>Enemy HP is shown as a white bar at the top of the screen.</li><li>Player HP is shown as a red bar in the right-side score area.</li></ol>',
+          controls: '<ol><li>Left Arrow -- Move left</li><li>Right Arrow -- Move right</li><li>Up Arrow -- Move up</li><li>Down Arrow -- Move down</li><li>Ctrl -- Move slowly (half speed)</li><li>Shift -- Move quickly (double speed)</li><li>Z -- Show player hitbox</li></ol>',
+          'char-rea': '<h3>Rea</h3><p>Rea is a well-balanced attacker with high rate of fire on basic shots. Good mobility makes her strong in close combat.</p>',
+          'char-noa': '<h3>Noa</h3><p>Noa specializes in long-range combat, firing slower but more powerful projectiles. Positioning is key.</p>',
+          'char-noel': '<h3>Noel</h3><p>Noel is a support-type with special abilities for assisting allies and controlling the battlefield.</p>'
+        }
+      }
     },
     ja: {
       start: 'スタート',
@@ -79,6 +118,26 @@
       characters: { rea: 'レア', noa: 'ノア', noel: 'ノエル' },
       ships: { woodskiff: '木の小舟' },
       projectiles: { basic: 'ベーシック', fast: 'ファスト', heavy: 'ヘビー', energy: 'エネルギー', plasma: 'プラズマ', quantum: 'クォンタム' }
+      ,
+      explanation: {
+        prevAria: '前のページ',
+        nextAria: '次のページ',
+        pages: {
+          about: '説明',
+          controls: '操作方法',
+          'char-rea': 'レア',
+          'char-noa': 'ノア',
+          'char-noel': 'ノエル'
+        }
+        ,
+        content: {
+          about: '<ol><li>飛んでくる弾幕を避けてモンスターを倒してください。</li><li>モンスターの体力は画面上部の白いバーで表示されます。</li><li>プレイヤーの体力は右側のスコア領域にある赤いバーで表示されます。</li></ol>',
+          controls: '<ol><li>←キー -- 左に移動</li><li>→キー -- 右に移動</li><li>↑キー -- 上に移動</li><li>↓キー -- 下に移動</li><li>Ctrl -- ゆっくり移動（速度の半分）</li><li>Shift -- 速く移動（速度の2倍）</li><li>Z -- プレイヤーのヒットボックス表示</li></ol>',
+          'char-rea': '<h3>レア</h3><p>レアはバランスの取れた攻撃型キャラクターで、基本ショットの連射性に優れています。機動力が高く近距離戦に有利です。</p>',
+          'char-noa': '<h3>ノア</h3><p>ノアは長距離戦に特化したキャラクターで、遅いが強力な弾を使用します。戦略的な位置取りが重要です。</p>',
+          'char-noel': '<h3>ノエル</h3><p>ノエルはサポート型で特殊能力を持ち、味方支援やフィールド制御に長けています。</p>'
+        }
+      }
     }
   };
 
