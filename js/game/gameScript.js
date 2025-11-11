@@ -757,7 +757,23 @@
      */
     endStage(){
       this.stopStage();
-      try{ alert('Stage complete!'); }catch(e){}
+      // dynamically load win.js and call showWin (fallback to alert if unavailable)
+      const loadAndShow = () => {
+        if (typeof window.showWin === 'function'){
+          try{ window.showWin(); }catch(e){ console.error('showWin failed', e); }
+        } else {
+          try{ alert('Stage complete!'); }catch(e){}
+        }
+      };
+      if (typeof window.showWin === 'function'){
+        loadAndShow();
+      } else {
+        const s = document.createElement('script');
+        s.src = 'js/game/win.js';
+        s.onload = loadAndShow;
+        s.onerror = function(){ try{ alert('Stage complete!'); }catch(e){ console.warn('Failed to load win.js'); } };
+        document.body.appendChild(s);
+      }
     }
   };
 
