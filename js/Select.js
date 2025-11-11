@@ -11,11 +11,11 @@
 	// Stages array: add new stage objects here to extend the selector.
 	// Each item should include: id, title, subtitle (optional), image (relative path)
 	const stages = [
-		{ id: 'stage1', title: '바다의 섬', subtitle: '초급', image: 'assets/stage1.jpg' },
-		{ id: 'stage2', title: '은하 협곡', subtitle: '중급', image: 'assets/stage2.jpg' },
-		{ id: 'stage3', title: '유성 필드', subtitle: '중상', image: 'assets/stage3.jpg' },
-		{ id: 'stage4', title: '고대 유적', subtitle: '고급', image: 'assets/stage4.jpg' },
-		{ id: 'stage5', title: '심해 미궁', subtitle: '보너스', image: 'assets/stage5.jpg' }
+		{ id: 'stage1', title: '은하 협곡', subtitle: '-개발중-', image: 'assets/stage1.jpg' },
+		{ id: 'stage2', title: '바다의 섬', subtitle: '-개발중-', image: 'assets/stage2.jpg' },
+		{ id: 'stage3', title: '유성 필드', subtitle: '-개발중-', image: 'assets/stage3.jpg' },
+		{ id: 'stage4', title: '고대 유적', subtitle: '-개발중-', image: 'assets/stage4.jpg' },
+		{ id: 'stage5', title: '심해 미궁', subtitle: '-개발중-', image: 'assets/stage5.jpg' }
 	];
 
 	function createStageElement(stage) {
@@ -82,6 +82,9 @@
 		if (listEl) {
 			listEl.dispatchEvent(new CustomEvent('stagechange', { detail: { id: stageId } }));
 		}
+
+		// stage1 선택 시 자동으로 player/game 스크립트를 로드하고 스테이지를 시작
+		try { startStageById(stageId); } catch (e) { console.error(e); }
 	}
 
 	function renderStageList(containerId) {
@@ -99,9 +102,13 @@
 		updateStageSizes();
 
 		// default: select the first stage so UI shows centered selection
+		// default: do NOT auto-select/start a stage on page load.
+		// Instead, center the first item visually so the UI looks good,
+		// but wait for explicit user action (click/Enter) to start.
 		const first = ul.querySelector('.stage-item');
 		if (first) {
-			selectStageElement(first, stages[0].id);
+			try { centerSelected(first); } catch (e) { /* ignore */ }
+			// intentionally do NOT call selectStageElement here to avoid auto-start
 		}
 	}
 
@@ -136,6 +143,83 @@
 		const offsetLeft = el.offsetLeft + (el.offsetWidth / 2) - (wrapper.clientWidth / 2);
 		wrapper.scrollTo({ left: offsetLeft, behavior: 'smooth' });
 	}
+
+		// --- 스크립트 동적 로드 및 스테이지 시작 도우미 ---
+		// 같은 src를 중복으로 삽입하지 않도록 검사하고 Promise를 반환합니다.
+		function loadScriptOnce(src){
+			return new Promise((resolve, reject) => {
+				// 이미 로드된 경우 바로 resolve
+				const existing = Array.from(document.scripts).find(s => s.src && s.src.endsWith(src));
+				if (existing) return resolve(existing);
+				const s = document.createElement('script');
+				s.src = src;
+				s.onload = () => resolve(s);
+				s.onerror = (e) => reject(new Error('Failed to load script: '+src));
+				document.body.appendChild(s);
+			});
+		}
+
+		// stageId가 'stage1'일 때 player.js와 gameScript.js(없다면)를 보장한 뒤 Game.startStage 호출
+		function startStageById(stageId){
+			if (!stageId) return;
+			// 여기서는 stage1에 대해서만 자동 시작 로직을 적용
+			if (stageId !== 'stage1') return;
+
+			// 먼저 player와 game 런타임 스크립트를 로드
+			const playerSrc = 'js/game/player.js';
+			const gameSrc = 'js/game/gameScript.js';
+
+			// 로드 순서: player -> game (game은 player가 없어도 동작하지만 Player 필요)
+			loadScriptOnce(playerSrc).catch((e)=>{
+				console.warn('player.js 로드 실패:', e);
+			}).then(()=>{
+				return loadScriptOnce(gameSrc).catch((e)=>{
+					console.warn('gameScript.js 로드 실패:', e);
+				});
+			}).then(()=>{
+				try{
+					// Game 존재 여부 확인 및 초기화
+					if (window.Game){
+						// 먼저 UI 전환: 선택 화면을 숨기고 게임 캔버스를 보이게 함
+						const canvasEl = document.getElementById('gameCanvas');
+						const selectUI = document.getElementById('gameSelectUI');
+						const startScreen = document.getElementById('startScreen');
+						if (selectUI) selectUI.style.display = 'none';
+						if (startScreen) startScreen.style.display = 'none';
+						if (canvasEl){
+							canvasEl.style.display = '';
+							// make canvas fill viewport if CSS does not; update size via Game.init
+							canvasEl.style.width = '100vw';
+							canvasEl.style.height = '100vh';
+						}
+						// 초기화 및 스테이지 시작
+						if (!window.Game.canvas) window.Game.init && window.Game.init('gameCanvas');
+						window.Game.startStage && window.Game.startStage(stageId).catch(console.error);
+					} else {
+						// 만약 gameScript가 비동기로 로드되어 아직 전역에 붙지 않았다면 잠깐 대기 후 시도
+						setTimeout(()=>{
+							if (window.Game){
+								// 같은 UI 전환 처리
+								const canvasEl2 = document.getElementById('gameCanvas');
+								const selectUI2 = document.getElementById('gameSelectUI');
+								const startScreen2 = document.getElementById('startScreen');
+								if (selectUI2) selectUI2.style.display = 'none';
+								if (startScreen2) startScreen2.style.display = 'none';
+								if (canvasEl2){
+									canvasEl2.style.display = '';
+									canvasEl2.style.width = '100vw';
+									canvasEl2.style.height = '100vh';
+								}
+								window.Game.init && window.Game.init('gameCanvas');
+								window.Game.startStage && window.Game.startStage(stageId).catch(console.error);
+							} else {
+								console.error('Game 런타임을 찾을 수 없습니다. js/game/gameScript.js가 올바르게 로드되었는지 확인하세요.');
+							}
+						}, 120);
+					}
+				}catch(err){ console.error(err); }
+			});
+		}
 
 	// keep sizes responsive
 	window.addEventListener('resize', function () {
