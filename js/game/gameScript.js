@@ -292,6 +292,8 @@
         // 엔티티 초기화
         this.enemies = [];
         this.bullets = [];
+    // reset hit counter for the stage
+    this.hits = 0;
         this.running = true;
         this.lastTime = performance.now();
         this.loop(this.lastTime);
@@ -434,7 +436,7 @@
             const en = this.enemies[ei];
             if (this.rectIntersect(b, en)){
               en.hp -= b.damage || 1;
-              b.dead = true; // 탄환 제거 표시
+              b.dead = true; // mark bullet for removal
               break;
             }
           }
@@ -464,6 +466,8 @@
             // apply damage (default 1)
             const dmg = (typeof b.damage === 'number') ? b.damage : 1;
             this.player.hp = Math.max(0, (this.player.hp || 0) - dmg);
+            // increment hit counter when player is hit by enemy bullet
+            try{ this.hits = (this.hits || 0) + 1; }catch(e){}
             // trigger invulnerability and blinking
             this.player.invulnerable = true;
             this.player.invulTimer = (this.player.invulDur || 2.0);
@@ -698,14 +702,16 @@
     ctx.fillRect(sdX, sdY, sdSize, sdSize);
   }
 
-  // Score text placed immediately to the right of the SD portrait
+  // Score (or Hits in practice mode) text placed immediately to the right of the SD portrait
   const scoreX = sdX + sdSize + 6;
   let sy = pad + 20;
   ctx.font = this.styles.labelFont || '16px sans-serif';
   ctx.fillStyle = this.styles.textColor || '#fff';
-  ctx.fillText('SCORE', scoreX, sy);
+  const label = (this.practiceMode) ? 'HITS' : 'SCORE';
+  const value = (this.practiceMode) ? String(this.hits || 0) : String(this.score || 0);
+  ctx.fillText(label, scoreX, sy);
   ctx.font = this.styles.scoreFont || '28px monospace';
-  ctx.fillText(String(this.score || 0), scoreX, sy + 36);
+  ctx.fillText(value, scoreX, sy + 36);
 
   // draw any HUD effects (e.g. low-HP attack image) on top of the HUD
   try{

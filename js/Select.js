@@ -366,13 +366,14 @@
 					practice.appendChild(document.createTextNode(' 연습모드'));
 				}
 
-				// create container if missing (we append to body and absolutely position it under the stage list)
+				// create container if missing (append to the select UI so it is only visible there)
+				const selectUIParent = document.getElementById('gameSelectUI') || null;
 				let pc = document.getElementById('select-practice-container');
 				if (!pc){
 					pc = document.createElement('div');
 					pc.id = 'select-practice-container';
 					pc.style.cssText = 'position:absolute;left:0;top:0;z-index:9999;pointer-events:auto;';
-					document.body.appendChild(pc);
+					if (selectUIParent) selectUIParent.appendChild(pc); else document.body.appendChild(pc);
 				}
 				// move the practice element into our container (appendChild will relocate if already present)
 				pc.appendChild(practice);
