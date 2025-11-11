@@ -177,6 +177,27 @@
           alpha: 1
         };
         this.hudEffects.push(ef);
+        // play a character-specific attack voice once when the low-HP effect starts
+        try{
+          const self = this;
+          // avoid overlapping attack voice playback
+          if (!self._attackVoiceAudio || self._attackVoiceAudio.ended){
+            let charId = null;
+            try{ const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; charId = saved.character || saved.char || null; }catch(e){ charId = null; }
+            if (!charId && self.player && self.player.characterId) charId = self.player.characterId;
+            if (!charId) charId = 'Noel';
+            const cap = (typeof charId === 'string' && charId.length) ? (charId.charAt(0).toUpperCase() + charId.slice(1)) : String(charId);
+            const voicePath = `assets/audio/character/${cap}_attack_voice.wav`;
+            try{
+              const a = new Audio(voicePath);
+              a.loop = false;
+              try{ const s = (window.Settings && window.Settings.get) ? window.Settings.get() : null; if (s && typeof s.voiceVolume === 'number') a.volume = s.voiceVolume; }catch(e){}
+              a.play().catch(()=>{});
+              self._attackVoiceAudio = a;
+              a.addEventListener('ended', function(){ try{ if (self._attackVoiceAudio === a) self._attackVoiceAudio = null; }catch(e){} });
+            }catch(e){}
+          }
+        }catch(e){}
       }catch(e){ console.warn('Failed to start low HP attack effect', e); }
     },
 
@@ -297,6 +318,20 @@
         this.running = true;
         this.lastTime = performance.now();
         this.loop(this.lastTime);
+        // If this is stage1, start background music loop (assets/audio/stage1_bgm.mp3)
+        try{
+          // stop any existing bgm first
+          if (this._bgmAudio){ try{ this._bgmAudio.pause(); }catch(e){} }
+          if (String(stageId).toLowerCase().indexOf('stage1') !== -1){
+            const bgPath = 'assets/audio/stage1_bgm.mp3';
+            const a = new Audio(bgPath);
+            a.loop = true;
+            // set volume from settings if available (musicVolume), else keep default
+            try{ const s = (window.Settings && window.Settings.get) ? window.Settings.get() : null; if (s && typeof s.musicVolume === 'number') a.volume = s.musicVolume; }catch(e){}
+            a.play().catch(()=>{});
+            this._bgmAudio = a;
+          }
+        }catch(e){ /* best-effort bgm start */ }
         if (stageModule && typeof stageModule.start === 'function') stageModule.start();
         return stageModule;
       });
@@ -315,6 +350,8 @@
       this.stageModule = null;
       // ensure lost flag is cleared when stopping a stage
       this._lost = false;
+      // stop background music if any
+      try{ if (this._bgmAudio){ try{ this._bgmAudio.pause(); }catch(e){} this._bgmAudio = null; } }catch(e){}
     },
 
     /** 메인 루프 스케줄러 (requestAnimationFrame 기반) */

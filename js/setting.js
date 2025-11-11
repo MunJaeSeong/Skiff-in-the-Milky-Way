@@ -10,6 +10,8 @@
   const defaults = {
     soundEnabled: true,
     soundVolume: 0.8,
+    musicVolume: 0.8,
+    voiceVolume: 0.8,
     language: 'ko'
   };
 
@@ -148,6 +150,11 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return Object.assign({}, defaults);
       const parsed = JSON.parse(raw);
+      // migrate legacy single soundVolume to both music/voice if needed
+      if (typeof parsed.musicVolume === 'undefined' && typeof parsed.voiceVolume === 'undefined' && typeof parsed.soundVolume === 'number'){
+        parsed.musicVolume = parsed.soundVolume;
+        parsed.voiceVolume = parsed.soundVolume;
+      }
       return Object.assign({}, defaults, parsed);
     }catch(e){
       return Object.assign({}, defaults);
@@ -218,9 +225,16 @@
           <label style="display:inline-flex;align-items:center;gap:8px;">
             <input type="checkbox" class="settings-sound-enabled" aria-label="${t.soundLabel}">
           </label>
-          <!-- volume wrapper will be shown/hidden depending on checkbox -->
-          <div class="settings-volume-wrap" style="margin-top:8px;">
-            <input type="range" min="0" max="1" step="0.01" class="settings-volume" />
+          <!-- volume wrappers will be shown/hidden depending on checkbox -->
+          <div class="settings-volume-wrap" style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">
+            <label style="display:flex;align-items:center;gap:8px;">
+              <span style="min-width:80px;display:inline-block;">Music</span>
+              <input type="range" min="0" max="1" step="0.01" class="settings-music-volume" />
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;">
+              <span style="min-width:80px;display:inline-block;">Voice</span>
+              <input type="range" min="0" max="1" step="0.01" class="settings-voice-volume" />
+            </label>
           </div>
         </div>
       </div>
@@ -242,28 +256,31 @@
       </div>
     `;
 
-    // wire up elements
-    const chk = modal.querySelector('.settings-sound-enabled');
-    const vol = modal.querySelector('.settings-volume');
-    const sel = modal.querySelector('.settings-language');
+  // wire up elements
+  const chk = modal.querySelector('.settings-sound-enabled');
+  const musicVol = modal.querySelector('.settings-music-volume');
+  const voiceVol = modal.querySelector('.settings-voice-volume');
+  const sel = modal.querySelector('.settings-language');
     const saveBtn = modal.querySelector('.settings-save');
     const closeBtn = modal.querySelector('.close');
 
     // checkbox semantics: checked === OFF, unchecked === ON
     chk.checked = !settings.soundEnabled;
-    vol.value = (typeof settings.soundVolume === 'number') ? settings.soundVolume : defaults.soundVolume;
-    // show/hide volume control depending on sound enabled
+    // set individual volumes (migrate if needed handled in readSettings)
+    musicVol.value = (typeof settings.musicVolume === 'number') ? settings.musicVolume : defaults.musicVolume;
+    voiceVol.value = (typeof settings.voiceVolume === 'number') ? settings.voiceVolume : defaults.voiceVolume;
+    // show/hide volume controls depending on sound enabled
     const volWrap = modal.querySelector('.settings-volume-wrap');
     if (volWrap) {
-      // when checkbox is checked => sound is OFF, so hide the volume
+      // when checkbox is checked => sound is OFF, so hide the volume controls
       if (chk.checked) {
         volWrap.style.display = 'none';
-        vol.setAttribute('aria-hidden','true');
-        vol.disabled = true;
+        musicVol.setAttribute('aria-hidden','true'); musicVol.disabled = true;
+        voiceVol.setAttribute('aria-hidden','true'); voiceVol.disabled = true;
       } else {
         volWrap.style.display = '';
-        vol.removeAttribute('aria-hidden');
-        vol.disabled = false;
+        musicVol.removeAttribute('aria-hidden'); musicVol.disabled = false;
+        voiceVol.removeAttribute('aria-hidden'); voiceVol.disabled = false;
       }
     }
     sel.value = settings.language || 'ko';
@@ -275,19 +292,22 @@
       // toggle volume UI: show when sound is ON (unchecked)
       if (volWrap) {
         if (chk.checked) {
-          // OFF -> hide volume
+          // OFF -> hide volumes
           volWrap.style.display = 'none';
-          vol.disabled = true;
-          vol.setAttribute('aria-hidden','true');
+          musicVol.disabled = true; musicVol.setAttribute('aria-hidden','true');
+          voiceVol.disabled = true; voiceVol.setAttribute('aria-hidden','true');
         } else {
           volWrap.style.display = '';
-          vol.disabled = false;
-          vol.removeAttribute('aria-hidden');
+          musicVol.disabled = false; musicVol.removeAttribute('aria-hidden');
+          voiceVol.disabled = false; voiceVol.removeAttribute('aria-hidden');
         }
       }
     });
-    vol.addEventListener('input', function(){
-      const s = readSettings(); s.soundVolume = parseFloat(vol.value); writeSettings(s);
+    musicVol.addEventListener('input', function(){
+      const s = readSettings(); s.musicVolume = parseFloat(musicVol.value); writeSettings(s);
+    });
+    voiceVol.addEventListener('input', function(){
+      const s = readSettings(); s.voiceVolume = parseFloat(voiceVol.value); writeSettings(s);
     });
     sel.addEventListener('change', function(){
       applyLanguage(sel.value);
@@ -296,9 +316,10 @@
 
     saveBtn.addEventListener('click', function(){
       const s = readSettings();
-  // persist inverted checkbox semantics (checked === OFF)
-  s.soundEnabled = !chk.checked;
-      s.soundVolume = parseFloat(vol.value);
+      // persist inverted checkbox semantics (checked === OFF)
+      s.soundEnabled = !chk.checked;
+      s.musicVolume = parseFloat(musicVol.value);
+      s.voiceVolume = parseFloat(voiceVol.value);
       s.language = sel.value;
       writeSettings(s);
       // apply language one more time (defensive)
@@ -390,7 +411,7 @@
     document.addEventListener('keydown', onKeyDown, true);
 
     // focus the first focusable element in the modal
-    try{ setTimeout(() => { refreshFocusable(); if (focusableInside[0]) focusableInside[0].focus(); else vol.focus(); }, 10); }catch(e){}
+  try{ setTimeout(() => { refreshFocusable(); if (focusableInside[0]) focusableInside[0].focus(); else if (musicVol) musicVol.focus(); else closeBtn.focus(); }, 10); }catch(e){}
   }
 
   // init: apply stored language right away so menu uses correct language

@@ -12,8 +12,8 @@
 	// Each item should include: id, title, subtitle (optional), image (relative path)
 	const stages = [
 		{ id: 'stage1', title: '은하 협곡', subtitle: '-개발중-', image: 'assets/stage/galaxy-canyon.png' },
-		{ id: 'stage2', title: '바다의 섬', subtitle: '-개발중-', image: 'assets/stage/ocean-island.png' },
-		{ id: 'stage3', title: '초신성 폭발', subtitle: '-개발중-', image: 'assets/stage/supernova-explosion.jpg' },
+		{ id: 'stage2', title: '바다의 섬', subtitle: '-개발중-', image: 'assets/stage/coming-soon.png' },
+		{ id: 'stage3', title: '초신성 폭발', subtitle: '-개발중-', image: 'assets/stage/coming-soon.png' },
 		{ id: 'stage4', title: 'Coming Soon', subtitle: '-개발중-', image: 'assets/stage/coming-soon.png' }
 	];
 
