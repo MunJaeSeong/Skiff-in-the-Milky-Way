@@ -26,6 +26,8 @@
       this.w = 40; this.h = 40; // 충돌용 크기(간단화)
       this.speed = 240; // px/s, 이동 속도
       this.hp = 10; // 플레이어 체력
+  // 최대 체력 보관 (기본값은 생성 시 hp)
+  this.maxHp = this.hp;
       this.cooldown = 0; // 발사 쿨타임
       this.fireRate = 0.25; // 초 단위 발사 간격
       // 기본 발사체 정보: 이미지 경로, 속도, 데미지
@@ -153,12 +155,21 @@
       this.x += (dx/len) * this.speed * dt;
       this.y += (dy/len) * this.speed * dt;
       // 화면 경계 안으로 클램프
-      this.x = Math.max(0, Math.min(this.game.width, this.x));
-      this.y = Math.max(0, Math.min(this.game.height, this.y));
+      // 오른쪽 HUD 패널(캔버스 폭의 약 25%)으로 플레이어가 진입하지 못하도록 제한
+      const panelW = Math.floor((this.game && this.game.width ? this.game.width : 0) * 0.25);
+      const gameAreaW = Math.max(100, (this.game && this.game.width ? this.game.width : 0) - panelW);
+      const halfW = (this.w || 0) / 2;
+      const halfH = (this.h || 0) / 2;
+      const minX = halfW;
+      const maxX = Math.max(minX, gameAreaW - halfW);
+      const minY = halfH;
+      const maxY = Math.max(minY, (this.game && this.game.height ? this.game.height : 0) - halfH);
+      this.x = Math.max(minX, Math.min(maxX, this.x));
+      this.y = Math.max(minY, Math.min(maxY, this.y));
 
-      // 발사 처리: Space 키 또는 ' ' (브라우저에 따라 다름)
+      // 발사 처리: 입력과 상관없이 자동 발사하도록 변경
       this.cooldown -= dt;
-      if ((keys.Space || keys[' ']) && this.cooldown <= 0){
+      if (this.cooldown <= 0){
         this.shoot();
         this.cooldown = this.fireRate;
       }

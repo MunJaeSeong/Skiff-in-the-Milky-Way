@@ -35,11 +35,14 @@
    * 주의: 이 파일은 최소 기능의 초안이며, 실제 게임 로직은 단계별로 확장해야 합니다.
    */
   const Game = {
-    canvas: null,
-    ctx: null,
-    width: 800,
-    height: 600,
-    running: false,
+  canvas: null,
+  ctx: null,
+  width: 800,
+  height: 600,
+  // HUD / score
+  score: 0,
+  highScore: 0,
+  running: false,
     lastTime: 0,
     rafId: null,
     player: null,
@@ -130,7 +133,10 @@
       const custom = readCustom();
       // Player 클래스는 별도 파일(js/game/player.js)에 정의되어야 함
       if (!window.Player){ console.warn('Player class not found (js/game/player.js expected).'); }
-      this.player = window.Player ? new window.Player(this, this.width/2, this.height - 120) : null;
+      // spawn player centered within the gameplay area (left 75% of canvas)
+      const panelW = Math.floor(this.width * 0.25);
+      const gameAreaW = Math.max(100, this.width - panelW);
+      this.player = window.Player ? new window.Player(this, Math.floor(gameAreaW / 2), this.height - 120) : null;
       if (this.player && typeof this.player.applyCustomization === 'function'){
         this.player.applyCustomization(custom);
       }
@@ -245,17 +251,68 @@
       const ctx = this.ctx;
       if (!ctx) return;
       ctx.clearRect(0,0,this.width,this.height);
-      // 배경 채우기
-      ctx.fillStyle = '#000'; ctx.fillRect(0,0,this.width,this.height);
-      // 플레이어 그리기 (Player.draw가 있으면 호출)
+
+      // compute panel and game area sizes
+      const panelW = Math.floor(this.width * 0.25);
+      const gameAreaW = Math.max(100, this.width - panelW);
+
+      // draw gameplay area (clipped to left region)
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, gameAreaW, this.height);
+      ctx.clip();
+
+      // gameplay background
+      ctx.fillStyle = '#000022';
+      ctx.fillRect(0, 0, gameAreaW, this.height);
+
+      // draw player and entities inside gameplay area
       try{ if (this.player && this.player.draw) this.player.draw(ctx); }catch(e){ console.error(e); }
-      // 적 그리기
       this.enemies.forEach(e => { if (e.draw) e.draw(ctx); else { ctx.fillStyle='red'; ctx.fillRect(e.x-10,e.y-10,20,20); } });
-      // 탄환 그리기
       this.bullets.forEach(b => { if (b.draw) b.draw(ctx); else { ctx.fillStyle='yellow'; ctx.fillRect(b.x-3,b.y-6,6,12); } });
-      // 간단 HUD (플레이어 HP)
-      ctx.fillStyle = '#fff'; ctx.font = '14px sans-serif';
-      if (this.player) ctx.fillText('HP: '+(this.player.hp||0), 12, 20);
+
+      if (this.stageModule && typeof this.stageModule.draw === 'function'){
+        try{ this.stageModule.draw(ctx); }catch(e){}
+      }
+
+      ctx.restore();
+
+      // draw HUD panel on the right
+      const panelX = gameAreaW;
+      ctx.fillStyle = '#0b1220';
+      ctx.fillRect(panelX, 0, panelW, this.height);
+
+      const pad = 14;
+      const textX = panelX + pad;
+      let y = pad + 20;
+
+      ctx.fillStyle = '#fff';
+      ctx.font = '16px sans-serif';
+      ctx.fillText('SCORE', textX, y);
+      ctx.font = '28px monospace';
+      ctx.fillText(String(this.score || 0), textX, y + 36);
+
+      // HP
+      y += 100;
+      ctx.font = '14px sans-serif';
+      ctx.fillStyle = '#fff';
+      ctx.fillText('HP', textX, y);
+      y += 12;
+      const barW = panelW - pad*2;
+      const barH = 18;
+      const hp = (this.player && typeof this.player.hp === 'number') ? this.player.hp : 0;
+      const maxHp = (this.player && typeof this.player.maxHp === 'number') ? this.player.maxHp : 10;
+      const pct = Math.max(0, Math.min(1, hp / (maxHp || 1)));
+      // bar BG
+      ctx.fillStyle = '#22303f';
+      ctx.fillRect(textX, y + 8, barW, barH);
+      // bar FG
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(textX, y + 8, Math.floor(barW * pct), barH);
+      // hp text
+      ctx.fillStyle = '#fff';
+      ctx.font = '13px sans-serif';
+      ctx.fillText(hp + ' / ' + maxHp, textX + 6, y + 8 + barH - 4);
     },
 
     // 엔티티 생성 헬퍼들 (스테이지/플레이어가 호출)
