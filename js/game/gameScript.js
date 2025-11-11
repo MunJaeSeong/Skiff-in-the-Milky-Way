@@ -52,6 +52,10 @@
     bullets: [],
     stageModule: null,
     registeredStages: {},
+  // HUD visual effects (e.g. low-HP attack image animation)
+  hudEffects: [],
+  // internal flag to avoid retriggering the low-HP effect repeatedly while HP stays low
+  _lowHpEffectActive: false,
 
     /**
      * 캔버스 초기화
@@ -84,6 +88,96 @@
       // 전역에 Game 레퍼런스 설정
       window.Game = window.Game || this;
       return this;
+    },
+
+    /**
+     * Compute HUD layout metrics so effects and other code can align to HUD elements.
+     * Returns object: { panelX, pad, barWidthV, barX, barY, barHeightV, sdX, sdY, sdSize, scoreX }
+     */
+    _computeHudLayout(){
+      const pad = (this.styles && this.styles.pad) ? this.styles.pad : 14;
+      const panelW = Math.floor(this.width * (this.styles && this.styles.panelFraction ? this.styles.panelFraction : 0.25));
+      const gameAreaW = Math.max(100, this.width - panelW);
+      const panelX = gameAreaW;
+      const barWidthVBase = (this.styles && this.styles.barWidthVBase) ? this.styles.barWidthVBase : 24;
+      const barWidthV = Math.max(8, Math.floor(barWidthVBase * 0.7));
+      const barX = panelX + pad;
+      const barY = pad;
+      const barHeightV = Math.max(80, this.height - pad*2);
+      const baseSd = Math.min((this.styles && this.styles.sdBase) ? this.styles.sdBase : 64, barHeightV, panelW - (barWidthV + pad*2));
+      let sdSize = Math.floor(baseSd * ((this.styles && this.styles.sdScale) ? this.styles.sdScale : 2.5));
+      sdSize = Math.min(sdSize, Math.max(8, panelW - (barWidthV + pad*2)), barHeightV);
+      const sdX = barX + barWidthV + 6;
+      const sdY = barY + barHeightV - sdSize;
+      const scoreX = sdX + sdSize + 6;
+      return { panelX, pad, barWidthV, barX, barY, barHeightV, sdX, sdY, sdSize, scoreX };
+    },
+
+    /**
+     * Start a low-HP attack effect using the player's character attack image
+     */
+    _startLowHpAttackEffect(){
+      try{
+        const idRaw = (this.player && this.player.characterId) ? this.player.characterId : null;
+        let id = idRaw || 'noel';
+        const candidates = [];
+        // if id looks like a path with extension, insert _attack before ext and try some variants
+        if (typeof id === 'string' && (id.startsWith('assets/') || id.match(/\.[a-zA-Z0-9]{2,4}$/))){
+          const m = id.match(/(.+)(\.[a-zA-Z0-9]{2,4})$/);
+          if (m){ candidates.push(m[1] + '_attack' + m[2]); }
+          candidates.push(id + '_attack.png');
+          candidates.push(id + '_attack.jpg');
+        } else if (typeof id === 'string'){
+          const cap = id.charAt(0).toUpperCase() + id.slice(1);
+          const lower = id.toLowerCase();
+          candidates.push(`assets/character/${id}_attack.png`);
+          candidates.push(`assets/character/${cap}_attack.png`);
+          candidates.push(`assets/character/${lower}_attack.png`);
+          candidates.push(`assets/character/${id}_attack.jpg`);
+        } else {
+          candidates.push('assets/character/noel_attack.png');
+          candidates.push('assets/character/Rea_attack.png');
+        }
+
+        // create Image that cycles through candidates on error (similar to player image loading)
+        const img = new Image();
+        img._broken = false;
+        img._candidates = candidates.slice();
+        img._ci = 0;
+        img.onload = () => { img._broken = false; };
+        img.onerror = function(){
+          const self = this;
+          self._ci = (self._ci || 0) + 1;
+          if (self._candidates && self._ci < self._candidates.length){
+            self.src = self._candidates[self._ci];
+          } else {
+            self._broken = true;
+          }
+        };
+        if (candidates.length) img.src = candidates[0];
+
+        // build effect payload
+        const m = this._computeHudLayout();
+        const size = Math.min(120, Math.max(48, Math.floor((m.sdSize || 32) * 1.5)));
+        const ef = {
+          img: img,
+          // increase the effect image to 5x the computed base size
+          w: size * 5,
+          h: size * 5,
+          // start a bit off the right edge but not too far so slide distance is short
+          x: (this.width || 800) + 12,
+          // position so the bottom of the (larger) image aligns with the bottom of the game canvas
+          y: (this.height || 600) - (size * 5),
+          slideIn: 0.5,
+          blink: 0.9,
+          blinkPeriod: 0.12,
+          fade: 0.9,
+          elapsed: 0,
+          visible: true,
+          alpha: 1
+        };
+        this.hudEffects.push(ef);
+      }catch(e){ console.warn('Failed to start low HP attack effect', e); }
     },
 
     /** 읽어온 CSS custom properties를 JS에서 쓸 수 있도록 파싱하여 저장합니다 */
@@ -122,6 +216,8 @@
       this.height = this.canvas.clientHeight || window.innerHeight;
       this.canvas.width = this.width;
       this.canvas.height = this.height;
+      // ensure lost flag cleared on init
+      this._lost = false;
     },
 
     /** 스테이지 모듈을 등록 (registerStage에서 호출됨) */
@@ -164,6 +260,8 @@
       if (!this.canvas) this.init('gameCanvas');
       // 기존 스테이지/루프 정리
       this.stopStage();
+      // clear lost state so defeat detection works after restart
+      this._lost = false;
       // 저장된 커스터마이즈를 읽어 플레이어에 적용
       const custom = readCustom();
       // Player 클래스는 별도 파일(js/game/player.js)에 정의되어야 함
@@ -204,6 +302,8 @@
       this.enemies = [];
       this.bullets = [];
       this.stageModule = null;
+      // ensure lost flag is cleared when stopping a stage
+      this._lost = false;
     },
 
     /** 메인 루프 스케줄러 (requestAnimationFrame 기반) */
@@ -371,6 +471,59 @@
       if (this.stageModule && typeof this.stageModule.onUpdate === 'function'){
         try{ this.stageModule.onUpdate(dt); }catch(e){}
       }
+
+      // HUD effects update (advance and remove expired effects)
+      if (this.hudEffects && this.hudEffects.length){
+        for (let i = this.hudEffects.length - 1; i >= 0; i--){
+          const ef = this.hudEffects[i];
+          ef.elapsed = (ef.elapsed || 0) + dt;
+          // lifecycle durations (configured per-effect)
+          const total = (ef.slideIn || 0.5) + (ef.blink || 0.8) + (ef.fade || 0.9);
+          if (ef.elapsed >= total){
+            this.hudEffects.splice(i,1);
+            continue;
+          }
+          // update position based on HUD layout
+          try{
+            const m = this._computeHudLayout();
+            // start closer to the right edge to shorten slide-in distance
+            const startX = (this.width || 800) + 200; // off-canvas right (shorter gap)
+            // land closer to the right HUD panel so slide distance is much shorter
+            // place the right edge of the image a bit inside the HUD panel
+            const endX = (m.panelX || 0) + 400;
+            const slideDur = ef.slideIn || 0.5;
+            const slideT = Math.min(1, ef.elapsed / slideDur);
+            ef.x = startX + (endX - startX) * slideT;
+            // keep the image bottom aligned with the canvas bottom during the animation
+            ef.y = (this.height || 600) - (ef.h || 64);
+            // blink during blink phase
+            if (ef.elapsed > slideDur && ef.elapsed <= (slideDur + (ef.blink || 0.8))){
+              const blinkElapsed = ef.elapsed - slideDur;
+              ef.visible = Math.floor(blinkElapsed / (ef.blinkPeriod || 0.12)) % 2 === 0;
+            } else ef.visible = true;
+            // fade during final phase
+            if (ef.elapsed > (slideDur + (ef.blink || 0.8))){
+              const fadeElapsed = ef.elapsed - (slideDur + (ef.blink || 0.8));
+              ef.alpha = Math.max(0, 1 - Math.min(1, fadeElapsed / (ef.fade || 0.9)));
+            } else ef.alpha = 1;
+          }catch(e){ /* ignore */ }
+        }
+      }
+
+      // Low HP effect trigger: when player's HP falls to <=30% of maxHp, trigger once
+      try{
+        if (this.player && typeof this.player.hp === 'number' && typeof this.player.maxHp === 'number'){
+          const pct = this.player.hp / Math.max(1, this.player.maxHp);
+          if (pct <= 0.30){
+            if (!this._lowHpEffectActive){
+              this._lowHpEffectActive = true;
+              this._startLowHpAttackEffect();
+            }
+          } else {
+            this._lowHpEffectActive = false;
+          }
+        }
+      }catch(e){ }
 
       // player death handling: if player's hp reaches 0, stop the game and show lose overlay
       if (this.player && typeof this.player.hp === 'number' && this.player.hp <= 0 && !this._lost){
@@ -544,6 +697,36 @@
   ctx.fillText('SCORE', scoreX, sy);
   ctx.font = this.styles.scoreFont || '28px monospace';
   ctx.fillText(String(this.score || 0), scoreX, sy + 36);
+
+  // draw any HUD effects (e.g. low-HP attack image) on top of the HUD
+  try{
+    if (this.hudEffects && this.hudEffects.length){
+      this.hudEffects.forEach(ef => {
+        if (!ef || !ef.visible) return;
+        const alpha = (typeof ef.alpha === 'number') ? ef.alpha : 1;
+        try{
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          if (ef.img && ef.img.complete && !ef.img._broken && ef.img.naturalWidth > 0){
+            const w = ef.w || Math.floor(sdSize * 1.5);
+            const h = ef.h || Math.floor(sdSize * 1.5);
+            const x = (typeof ef.x === 'number') ? ef.x : (scoreX + 80);
+            const y = (typeof ef.y === 'number') ? ef.y : (sdY + ((sdSize - h)/2));
+            // draw from right-to-left (ef.x is updated in update())
+            ctx.drawImage(ef.img, x - w, y, w, h);
+          } else {
+            // fallback: draw a pulsing placeholder rectangle
+            const w = ef.w || 72; const h = ef.h || 72;
+            const x = (typeof ef.x === 'number') ? ef.x : (scoreX + 80);
+            const y = (typeof ef.y === 'number') ? ef.y : (sdY + ((sdSize - h)/2));
+            ctx.fillStyle = 'rgba(255,200,0,0.9)';
+            ctx.fillRect(x - w, y, w, h);
+          }
+        }catch(e){}
+        try{ ctx.restore(); }catch(e){}
+      });
+    }
+  }catch(e){}
     },
 
     // 엔티티 생성 헬퍼들 (스테이지/플레이어가 호출)

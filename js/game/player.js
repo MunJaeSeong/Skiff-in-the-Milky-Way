@@ -26,7 +26,7 @@
       this.w = 40; this.h = 40; // 충돌용 크기(간단화)
   this.r = 3; // hit radius in pixels (for collision checks)
       this.speed = 240; // px/s, 이동 속도
-      this.hp = 1; // 플레이어 체력
+      this.hp = 10; // 플레이어 체력
   // 최대 체력 보관 (기본값은 생성 시 hp)
   this.maxHp = this.hp;
   this.cooldown = 0; // 발사 쿨타임

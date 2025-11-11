@@ -35,13 +35,40 @@
 }
 
 .select-controls .btn {
-  background: rgba(0,0,0,0.6);
-  color: #fff;
-  border: 1px solid rgba(255,255,255,0.08);
+  /* Dark gray themed buttons for the select UI (customize button)
+     Matches the top-right Title / Settings buttons for consistent styling */
+  background: #2f2f2f;
+  color: #ffffff;
+  border: 1px solid #3f3f3f;
   padding: 8px 12px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 6px 18px rgba(0,0,0,0.6);
+  transition: background 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+}
+
+/* Top-right Title/Settings buttons: share the same pale-gray style */
+.select-top-right-buttons {
+  pointer-events: auto; /* ensure clicks work even though .select-ui uses pointer-events:none */
+}
+.select-top-right-buttons .btn {
+  background: #2f2f2f;
+  color: #ffffff;
+  border: 1px solid #3f3f3f;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 6px 18px rgba(0,0,0,0.6);
+  transition: background 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+}
+.select-top-right-buttons .btn:hover { background: #262626 }
+.select-top-right-buttons .btn:active { transform: translateY(1px); box-shadow: 0 3px 8px rgba(0,0,0,0.7) }
+
+@media (max-width: 480px) {
+  .select-top-right-buttons { top: 8px; right: 8px }
+  .select-top-right-buttons .btn { padding: 6px 10px; font-size: 13px }
 }
 
 .select-controls .btn.customize {
