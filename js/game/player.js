@@ -24,11 +24,18 @@
       this.x = x || 100;
       this.y = y || 100;
       this.w = 40; this.h = 40; // 충돌용 크기(간단화)
+  this.r = 3; // hit radius in pixels (for collision checks)
       this.speed = 240; // px/s, 이동 속도
-      this.hp = 10; // 플레이어 체력
+      this.hp = 1; // 플레이어 체력
   // 최대 체력 보관 (기본값은 생성 시 hp)
   this.maxHp = this.hp;
   this.cooldown = 0; // 발사 쿨타임
+      // Invulnerability state when hit
+      this.invulnerable = false;
+      this.invulTimer = 0; // remaining invul time
+      this.invulDur = 2.0; // seconds of invulnerability after hit
+      this.invulBlinkTimer = 0; // blink accumulator
+      this.invulBlinkPeriod = 0.12; // blink toggle period (seconds)
   // 발사 속도: 기존보다 3배 빠르게 (발사 간격을 1/3로). 원래 0.25 -> now ~0.0833s
   this.fireRate = 0.25 / 3;
       // 기본 발사체 정보: 이미지 경로, 속도, 데미지
@@ -84,31 +91,12 @@
      */
     applyCustomization(custom){
       if (!custom) return;
-      // character 필드가 이미지 경로일 경우 Image 객체로 로드
+      // store character id (but do NOT load/draw full-character sprite in-game)
+      // The in-game player graphic will be only the ship/skiff. SD portrait for HUD
+      // can still be loaded below using characterId.
       if (custom.character && typeof custom.character === 'string'){
-        const candidates = this._makeCandidatePaths('character', custom.character);
-        const img = new Image();
-        img._broken = false;
-        img._candidates = candidates;
-        img._ci = 0;
-        img.onload = () => { img._broken = false; };
-        img.onerror = function(){
-          // 다음 후보가 있으면 시도, 없으면 broken 플래그 설정
-          const self = this;
-          self._ci = (self._ci || 0) + 1;
-          if (self._candidates && self._ci < self._candidates.length){
-            self.src = self._candidates[self._ci];
-          } else {
-            self._broken = true;
-            console.warn('Character image failed to load, tried:', self._candidates);
-          }
-        };
-        // 첫 후보를 src로 설정(후속 후보는 onerror에서 처리)
-        if (candidates.length) img.src = candidates[0];
-        else img.src = custom.character; // fallback
-        this.sprite = img;
-        // store raw id for SD lookup
         this.characterId = custom.character;
+        this.sprite = null; // ensure in-game sprite not used
       }
       // ship/skiff 필드가 이미지 경로일 경우 (UI에서 'skiff'로 저장한다면 이 필드를 사용)
       if ((custom.ship && typeof custom.ship === 'string') || (custom.skiff && typeof custom.skiff === 'string')){
@@ -192,9 +180,18 @@
       if (keys.ArrowRight || keys['d']) dx += 1;
       if (keys.ArrowUp || keys['w']) dy -= 1;
       if (keys.ArrowDown || keys['s']) dy += 1;
+      // movement speed modifiers:
+      // default multiplier = 0.8 when no modifier keys are held
+      // Ctrl (Control key) -> slow movement (0.3)
+      // Shift -> fast movement (1.5)
+      // If both pressed, prioritize Shift (fast)
+      let speedMultiplier = 0.8;
+      if (keys.Shift) speedMultiplier = 1.5;
+      else if (keys.Control) speedMultiplier = 0.3;
+      const effectiveSpeed = (this.speed || 240) * speedMultiplier;
       const len = Math.hypot(dx,dy) || 1;
-      this.x += (dx/len) * this.speed * dt;
-      this.y += (dy/len) * this.speed * dt;
+      this.x += (dx/len) * effectiveSpeed * dt;
+      this.y += (dy/len) * effectiveSpeed * dt;
       // 화면 경계 안으로 클램프
       // 오른쪽 HUD 패널(캔버스 폭의 약 25%)으로 플레이어가 진입하지 못하도록 제한
       const panelW = Math.floor((this.game && this.game.width ? this.game.width : 0) * 0.25);
@@ -213,6 +210,19 @@
       if (this.cooldown <= 0){
         this.shoot();
         this.cooldown = this.fireRate;
+      }
+
+      // invulnerability timing and blink handling
+      if (this.invulTimer > 0){
+        this.invulTimer -= dt;
+        this.invulBlinkTimer += dt;
+        if (this.invulTimer <= 0){
+          this.invulTimer = 0;
+          this.invulnerable = false;
+          this.invulBlinkTimer = 0;
+        } else {
+          this.invulnerable = true;
+        }
       }
     }
 
@@ -240,24 +250,54 @@
      * - 이미지 로딩이 완료(complete)되었는지 확인하고 그리기
      */
     draw(ctx){
+      // invulnerability blinking: determine visibility
+      let visible = true;
+      if (this.invulnerable && this.invulBlinkPeriod > 0){
+        const period = this.invulBlinkPeriod || 0.12;
+        const t = Math.floor((this.invulBlinkTimer || 0) / period);
+        visible = (t % 2) === 0; // toggle visibility each period
+      }
+
       // 이미지가 완전히 로드되었고 깨지지 않았는지 확인한 뒤 그립니다.
+      // Track whether we successfully drew a player image this frame
+      let drewImage = false;
+
+      // if invisible due to blinking, skip drawing the player (still considered invulnerable)
+      if (!visible) return;
       try {
         if (this.shipSprite && this.shipSprite.complete && !this.shipSprite._broken && this.shipSprite.naturalWidth > 0){
           ctx.drawImage(this.shipSprite, this.x-32, this.y-24, 64, 48);
-          return;
+          drewImage = true;
         }
-        if (this.sprite && this.sprite.complete && !this.sprite._broken && this.sprite.naturalWidth > 0){
-          ctx.drawImage(this.sprite, this.x-24, this.y-24, 48, 48);
-          return;
-        }
+        // note: character sprite drawing removed; only shipSprite is drawn for in-game player
       } catch (err) {
         // drawImage에서 예외가 발생하면 대체 렌더로 폴백
         console.warn('drawImage error, falling back to placeholder:', err);
       }
 
       // 이미지가 없거나 깨졌을 때 기본 도형으로 대체
-      ctx.fillStyle = 'cyan';
-      ctx.fillRect(this.x-12, this.y-12, 24, 24);
+      if (!drewImage){
+        ctx.fillStyle = 'cyan';
+        ctx.fillRect(this.x-12, this.y-12, 24, 24);
+      }
+
+      // Draw hitbox glow when Z key is held. Allow overlap with other keys.
+      try{
+        const keys = (this.game && this.game.keys) ? this.game.keys : {};
+        if (keys['z'] || keys['Z']){
+          ctx.save();
+          ctx.beginPath();
+          ctx.fillStyle = 'rgba(0,255,255,0.95)';
+          ctx.shadowColor = 'rgba(0,200,255,0.9)';
+          ctx.shadowBlur = 10;
+          ctx.arc(this.x, this.y, this.r || 3, 0, Math.PI*2);
+          ctx.fill();
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = 'white';
+          ctx.stroke();
+          ctx.restore();
+        }
+      }catch(e){ /* ignore drawing errors for overlay */ }
     }
   }
 

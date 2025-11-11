@@ -20,6 +20,8 @@ document.addEventListener('DOMContentLoaded', function(){
         const firstStage = document.querySelector('.stage-item');
         if (firstStage) firstStage.focus();
       } catch (e) { /* ignore */ }
+      // ensure localization is refreshed when the select UI becomes visible
+      try{ if (window.StageSelect && typeof window.StageSelect.localize === 'function') window.StageSelect.localize(); }catch(e){}
     }
   }
 

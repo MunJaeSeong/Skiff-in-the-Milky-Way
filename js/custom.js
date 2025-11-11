@@ -31,7 +31,6 @@
     modal.className = 'modal custom-modal';
     modal.setAttribute('role','dialog');
     modal.setAttribute('aria-modal','true');
-
     modal.innerHTML = `
       <h2 style="margin:0 0 12px 0">커스터마이징</h2>
       <div class="custom-content" style="flex:1; display:flex; gap:16px; align-items:flex-start; overflow:hidden;">
@@ -233,7 +232,13 @@
       if (ch.img) thumb.style.backgroundImage = `url('${ch.img}')`;
 
   const label = document.createElement('div');
-  label.textContent = ch.name || ch.id;
+  // localize character name if a translation exists
+  try{
+    const lang = (window.Settings && typeof window.Settings.get === 'function') ? window.Settings.get().language : 'ko';
+    const tr = (window.Settings && window.Settings.translations) ? window.Settings.translations : {};
+    const cname = (tr[lang] && tr[lang].characters && tr[lang].characters[ch.id]) || ch.name || ch.id;
+    label.textContent = cname;
+  }catch(e){ label.textContent = ch.name || ch.id; }
   // make the character name clearly visible: white and larger (approx. 2x)
   label.style.fontSize = '32px';
   label.style.color = '#ffffff';
@@ -293,6 +298,26 @@
       charListEl.appendChild(el);
     });
 
+    // localize static labels (heading, tabs, save/close) if translations are available
+    try{
+      const lang = (window.Settings && typeof window.Settings.get === 'function') ? window.Settings.get().language : 'ko';
+      const tr = (window.Settings && window.Settings.translations) ? window.Settings.translations : {};
+      const t = tr[lang] || {};
+      const h2 = modal.querySelector('h2');
+      if (h2) h2.textContent = (t.custom && t.custom.title) || (t.settingsTitle) || h2.textContent;
+      if (tabCharBtn) tabCharBtn.textContent = (t.custom && t.custom.tabChar) || tabCharBtn.textContent;
+      if (tabShipBtn) tabShipBtn.textContent = (t.custom && t.custom.tabShip) || tabShipBtn.textContent;
+      if (tabProjectileBtn) tabProjectileBtn.textContent = (t.custom && t.custom.tabProjectile) || tabProjectileBtn.textContent;
+      if (saveBtn) saveBtn.textContent = (t.save) || saveBtn.textContent;
+      if (closeBtn) closeBtn.textContent = (t.close) || closeBtn.textContent;
+      // My Page heading + aside aria-label
+      const myPageH3 = modal.querySelector('aside.my-page h3');
+      const myPageAside = modal.querySelector('aside.my-page');
+      const myPageText = (t.custom && t.custom.myPage) || 'My Page';
+      if (myPageH3) myPageH3.textContent = myPageText;
+      if (myPageAside) myPageAside.setAttribute('aria-label', myPageText);
+    }catch(e){}
+
     // --- ship list ---
     // start with one ship; add more by adding objects to the `ships` array below
     const ships = [
@@ -344,7 +369,12 @@
       if (s.img) thumb.style.backgroundImage = `url('${s.img}')`;
 
       const lbl = document.createElement('div');
-      lbl.textContent = s.name || s.id;
+      // localize ship name if available
+      try{
+        const lang = (window.Settings && typeof window.Settings.get === 'function') ? window.Settings.get().language : 'ko';
+        const tr = (window.Settings && window.Settings.translations) ? window.Settings.translations : {};
+        lbl.textContent = (tr[lang] && tr[lang].ships && tr[lang].ships[s.id]) || s.name || s.id;
+      }catch(e){ lbl.textContent = s.name || s.id; }
       lbl.style.color = '#fff';
       lbl.style.fontSize = '18px';
 
@@ -400,7 +430,12 @@
         if (p.img) thumb.style.backgroundImage = `url('${p.img}')`;
 
         const lbl = document.createElement('div');
-        lbl.textContent = p.name || p.id;
+        // localize projectile name if available
+        try{
+          const lang = (window.Settings && typeof window.Settings.get === 'function') ? window.Settings.get().language : 'ko';
+          const tr = (window.Settings && window.Settings.translations) ? window.Settings.translations : {};
+          lbl.textContent = (tr[lang] && tr[lang].projectiles && tr[lang].projectiles[p.id]) || p.name || p.id;
+        }catch(e){ lbl.textContent = p.name || p.id; }
         lbl.style.color = '#fff';
         lbl.style.fontSize = '14px';
 
@@ -459,7 +494,7 @@
       }
     });
 
-    // update the left-side My Page preview
+    // update the left-side My Page preview (use localized names when available)
     function updateMyPage(){
       // find character and ship objects
       const ch = characters.find(c => c.id === selectedCharacter) || characters[0];
@@ -478,9 +513,21 @@
         if (pj && pj.img) myProjectileThumbEl.style.backgroundImage = `url('${pj.img}')`;
         else myProjectileThumbEl.style.backgroundImage = '';
       }
-      if (myCharNameEl) myCharNameEl.textContent = ch ? (ch.name || ch.id) : '';
-      if (myShipNameEl) myShipNameEl.textContent = sh ? (sh.name || sh.id) : '';
-      if (myProjectileNameEl) myProjectileNameEl.textContent = pj ? (pj.name || pj.id) : '';
+      try{
+        const lang = (window.Settings && typeof window.Settings.get === 'function') ? window.Settings.get().language : 'ko';
+        const tr = (window.Settings && window.Settings.translations) ? window.Settings.translations : {};
+        const t = tr[lang] || {};
+        const cname = (t.characters && t.characters[ch.id]) || ch.name || ch.id;
+        const sname = (t.ships && t.ships[sh.id]) || sh.name || sh.id;
+        const pname = (t.projectiles && t.projectiles[pj.id]) || pj.name || pj.id;
+        if (myCharNameEl) myCharNameEl.textContent = cname;
+        if (myShipNameEl) myShipNameEl.textContent = sname;
+        if (myProjectileNameEl) myProjectileNameEl.textContent = pname;
+      }catch(e){
+        if (myCharNameEl) myCharNameEl.textContent = ch ? (ch.name || ch.id) : '';
+        if (myShipNameEl) myShipNameEl.textContent = sh ? (sh.name || sh.id) : '';
+        if (myProjectileNameEl) myProjectileNameEl.textContent = pj ? (pj.name || pj.id) : '';
+      }
     }
     try{ updateMyPage(); }catch(e){}
 
@@ -506,9 +553,38 @@
     // append and activate
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
+    // live language updates while modal is open
+    function onLanguageChange(ev){
+      try{
+        const lang = (window.Settings && typeof window.Settings.get === 'function') ? window.Settings.get().language : 'ko';
+        const tr = (window.Settings && window.Settings.translations) ? window.Settings.translations : {};
+        const t = tr[lang] || {};
+        const h2 = modal.querySelector('h2');
+        if (h2) h2.textContent = (t.custom && t.custom.title) || (t.settingsTitle) || h2.textContent;
+        if (tabCharBtn) tabCharBtn.textContent = (t.custom && t.custom.tabChar) || tabCharBtn.textContent;
+        if (tabShipBtn) tabShipBtn.textContent = (t.custom && t.custom.tabShip) || tabShipBtn.textContent;
+        if (tabProjectileBtn) tabProjectileBtn.textContent = (t.custom && t.custom.tabProjectile) || tabProjectileBtn.textContent;
+        if (saveBtn) saveBtn.textContent = (t.save) || saveBtn.textContent;
+        if (closeBtn) closeBtn.textContent = (t.close) || closeBtn.textContent;
+        const myPageText = (t.custom && t.custom.myPage) || 'My Page';
+        const myPageH3 = modal.querySelector('aside.my-page h3');
+        const myPageAside = modal.querySelector('aside.my-page');
+        if (myPageH3) myPageH3.textContent = myPageText;
+        if (myPageAside) myPageAside.setAttribute('aria-label', myPageText);
+        // refresh localized preview names
+        try{ updateMyPage(); }catch(e){}
+      }catch(e){}
+    }
+    document.addEventListener('languagechange', onLanguageChange);
     disableBackgroundElements();
     document.addEventListener('keydown', onKeyDown, true);
     try{ setTimeout(()=>{ refreshFocusable(); if (focusableInside[0]) focusableInside[0].focus(); else saveBtn.focus(); }, 10); }catch(e){}
+    // remove language listener when modal closed
+    const _oldClose = closeModal;
+    closeModal = function(){
+      try{ document.removeEventListener('languagechange', onLanguageChange); }catch(e){}
+      try{ _oldClose(); }catch(e){}
+    };
   }
 
   window.Custom = window.Custom || {};

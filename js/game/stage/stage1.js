@@ -79,7 +79,8 @@
 					basicDuration: 10,
 					skillDuration: 7,
 					// which skill index will be used when a skill phase starts
-					currentSkillIndex: Math.floor(Math.random() * 4),
+					// choose among 0..2 only (remove Skill4)
+					currentSkillIndex: Math.floor(Math.random() * 3),
 					// return-to-spawn state (used after some skills, e.g. skill2)
 					returningToSpawn: false,
 					returnTimer: 0,
@@ -98,6 +99,8 @@
 					// HUD 패널 영역을 침범하지 않도록 보스 위치를 클램프
 					const panelW_local = Math.floor(this.game.width * ((this.game && this.game.styles && typeof this.game.styles.panelFraction === 'number') ? this.game.styles.panelFraction : 0.25));
 					const gameAreaW_local = Math.max(100, this.game.width - panelW_local);
+					// common margin used to clamp boss position in several branches
+					const margin = 40;
 					// return-to-spawn handling: if returning, interpolate back to spawnX/spawnY
 					if (this.mode === 'return' || this.returningToSpawn){
 						this.returnTimer = (this.returnTimer || 0) + dt;
@@ -113,6 +116,7 @@
 						if (t >= 1){
 							this.returningToSpawn = false;
 							this.mode = 'basic';
+							this._basic_seq = 0;
 							this.phaseTimer = 0;
 							this.returnTimer = 0;
 							this.returnStartX = 0; this.returnStartY = 0;
@@ -125,6 +129,7 @@
 						this.idleTimer = (this.idleTimer || 0) + dt;
 						if (this.idleTimer >= (this.idleDur || 1.5)){
 							this.mode = 'basic';
+							this._basic_seq = 0;
 							this.phaseTimer = 0;
 							this.idleTimer = 0;
 							this.idleDur = 0;
@@ -144,60 +149,14 @@
 							this.mode = 'skill';
 							this.phaseTimer = 0;
 							this.skillActive = true;
-							// choose a random skill for this skill-phase
-							this.currentSkillIndex = Math.floor(Math.random() * 4);
+							// choose a random skill for this skill-phase (0..2 only)
+							this.currentSkillIndex = Math.floor(Math.random() * 3);
 							// per-skill duration override: skill2 = 3s move + 10s firing = 13s total
 							if (this.currentSkillIndex === 1){
 								this.skillRemaining = 13.0; // 3s move + 10s fire (Skill2)
 							} else if (this.currentSkillIndex === 2) {
 								// Skill3: 지속적인 대량 느린 탄막 패턴 — 15초 지속
 								this.skillRemaining = 15.0;
-							} else if (this.currentSkillIndex === 3){
-								// Skill4: 맵 밖에서 보스에게로 모이는 역방향 패턴
-								if (!this._skill4_initialized){
-									this._skill4_count = 30 + Math.floor(Math.random() * 11); // 30..40
-									this._skill4_initialSpeed = 30; // 초기 접근 속도
-									this._skill4_baseAccel = 80; // 가속 베이스
-									// spawn radius: 화면 외곽(대각선 길이 + 여유)
-									this._skill4_spawnRadius = Math.sqrt(this.game.width*this.game.width + this.game.height*this.game.height) + 200;
-									this._skill4_initialized = true;
-								}
-								if (this.skillBurstTimer >= 0.2){
-									this.skillBurstTimer = 0;
-									const rot = (this._skill3_rotationOffset || 0); // 연속성 있게 같은 오프셋 사용
-									for (let i=0;i<this._skill4_count;i++){
-										const angle = (i / this._skill4_count) * Math.PI * 2 + rot;
-										const sx = this.x + Math.cos(angle) * this._skill4_spawnRadius;
-										const sy = this.y + Math.sin(angle) * this._skill4_spawnRadius;
-										const dx = this.x - sx, dy = this.y - sy;
-										const dist = Math.max(1, Math.sqrt(dx*dx + dy*dy));
-										const dirx = dx / dist, diry = dy / dist;
-										const b = {
-											x: sx, y: sy, r:3, speed: this._skill4_initialSpeed, vx: dirx * this._skill4_initialSpeed, vy: diry * this._skill4_initialSpeed,
-											owner:'enemy', spawnDist: dist, baseAccel: this._skill4_baseAccel, targetBoss: this,
-											update(dt){
-												// 거리 기반 가속: 보스에 가까워질수록 가속이 커짐
-												const tx = this.targetBoss.x, ty = this.targetBoss.y;
-												const dx = tx - this.x, dy = ty - this.y;
-												const dist = Math.max(1, Math.sqrt(dx*dx + dy*dy));
-												const initial = this.spawnDist || 1;
-												const accelFactor = 1 + ((initial - dist) / initial); // 거리가 줄어들수록 증가
-												this.speed += this.baseAccel * accelFactor * dt;
-												const nx = dx / dist, ny = dy / dist;
-												this.vx = nx * this.speed; this.vy = ny * this.speed;
-												this.x += this.vx * dt; this.y += this.vy * dt;
-												if (dist < 12) this.dead = true;
-												if (this.x < -400 || this.x > (this.game?this.game.width:800)+400 || this.y < -400 || this.y > (this.game?this.game.height:600)+400) this.dead = true;
-											},
-											draw(ctx){ ctx.fillStyle='pink'; ctx.beginPath(); ctx.arc(this.x,this.y,this.r||3,0,Math.PI*2); ctx.fill(); }
-										};
-										b.game = this.game;
-										this.game.spawnEnemyBullet(b);
-									}
-									// rotation offset는 Skill3와 동일하게 유지/증가
-									this._skill3_rotationOffset = (this._skill3_rotationOffset || 0) + (this._skill3_rotationStep || 0.04);
-								}
-								this.x = Math.max(margin, Math.min(gameAreaW_local - margin, this.x));
 							} else {
 								this.skillRemaining = this.skillDuration || 7.0;
 							}
@@ -209,7 +168,7 @@
 							this.skillStartY = this.y;
 							// For most skills we may want an immediate burst; for skill2 we'll handle firing inside the skill loop
 							if (this.currentSkillIndex !== 1){
-								const skillFn = [this._skill1, this._skill2, this._skill3, this._skill4][this.currentSkillIndex];
+								const skillFn = [this._skill1, this._skill2, this._skill3][this.currentSkillIndex];
 								if (typeof skillFn === 'function') skillFn.call(this, this.game);
 							}
 						}
@@ -236,18 +195,25 @@
 							} else {
 										// 발사 단계: 레이저 탄막 생성
 										const fireElapsed = this.skillPhaseTimer - moveDur;
-										// 레이저 각도 오프셋 누적 (회전 속도 조절)
-										this._laserAngleOffset = (this._laserAngleOffset || 0) + dt * 0.72;
+										// 레이저 각도 오프셋 누적 (회전 속도 점진 증가)
+										// 기본 회전속도(base)에서 발사 시간이 경과할수록 최대 2배까지 선형으로 증가
+										const baseSpin = this._laserBaseSpin || 0.72;
+										const maxFactor = 2.0; // 최대 2배
+										const factor = 1 + Math.min(1, (fireElapsed / (fireDur || 10.0)) );
+										const spinSpeed = baseSpin * Math.min(maxFactor, factor);
+										this._laserBaseSpin = baseSpin;
+										this._laserAngleOffset = (this._laserAngleOffset || 0) + dt * spinSpeed;
 										// 일정 간격으로 탄막 생성
 										if (this.skillBurstTimer >= 0.04){
 											this.skillBurstTimer = 0;
 											const baseAngles = [0, Math.PI/2, Math.PI, Math.PI*1.5];
 											for (let a of baseAngles){
 												const angle = a + (this._laserAngleOffset || 0);
-												const speed = 350 + Math.random()*40; // 탄속 (절반)
+												const speed = 350 + Math.random()*40; // 탄속
 												const vx = Math.cos(angle) * speed;
 												const vy = Math.sin(angle) * speed;
-												const b = { x: this.x, y: this.y, r:3, vx: vx, vy: vy, owner:'enemy', update(dt){ this.x += this.vx * dt; this.y += this.vy * dt; if (this.x < -200 || this.x > (this.game? this.game.width:800)+200 || this.y < -200 || this.y > (this.game? this.game.height:600)+200) this.dead = true; }, draw(ctx){ ctx.fillStyle='skyblue'; ctx.beginPath(); ctx.arc(this.x,this.y,this.r||3,0,Math.PI*2); ctx.fill(); } };
+												// 탄막 크기를 2배로 확대
+												const b = { x: this.x, y: this.y, r:6, vx: vx, vy: vy, owner:'enemy', update(dt){ this.x += this.vx * dt; this.y += this.vy * dt; if (this.x < -200 || this.x > (this.game? this.game.width:800)+200 || this.y < -200 || this.y > (this.game? this.game.height:600)+200) this.dead = true; }, draw(ctx){ ctx.fillStyle='skyblue'; ctx.beginPath(); ctx.arc(this.x,this.y,this.r||6,0,Math.PI*2); ctx.fill(); } };
 												b.game = this.game;
 												this.game.spawnEnemyBullet(b);
 											}
@@ -322,6 +288,7 @@
 								this.returnStartY = this.y;
 							} else {
 								this.mode = 'basic';
+								this._basic_seq = 0;
 								this.phaseTimer = 0;
 							}
 						}
@@ -339,9 +306,9 @@
 							this.skillBurstTimer = 0;
 							this.skillMovePhase = 0;
 							// immediately trigger one burst of the chosen skill
-							const idx = (typeof this.currentSkillIndex === 'number') ? this.currentSkillIndex : Math.floor(Math.random()*4);
+							const idx = (typeof this.currentSkillIndex === 'number') ? this.currentSkillIndex : Math.floor(Math.random()*3);
 							// call the skill once to create initial burst
-							const skillFn = [this._skill1, this._skill2, this._skill3, this._skill4][idx];
+							const skillFn = [this._skill1, this._skill2, this._skill3][idx];
 							if (typeof skillFn === 'function') skillFn.call(this, g);
 						} else if (type === 'basic'){
 							// basic pattern (default)
@@ -379,19 +346,7 @@
 					}
 				},
 
-				// Radial ring: bullets in a circle (360 deg)
-				_fireRadial(g){
-					const count = 12;
-					for (let i=0;i<count;i++){
-						const angle = (i / count) * Math.PI * 2;
-						const speed = 100 + Math.random()*60;
-						const vx = Math.cos(angle) * speed;
-						const vy = Math.sin(angle) * speed;
-						const b = { x: this.x, y: this.y+30, r:4, vx:vx, vy:vy, owner:'enemy', update(dt){ this.x += this.vx * dt; this.y += this.vy * dt; if (this.y > (this.game? this.game.height:600)+60 || this.x < -80 || this.x > (this.game? this.game.width:800)+80) this.dead=true; }, draw(ctx){ ctx.fillStyle='pink'; ctx.beginPath(); ctx.arc(this.x, this.y, this.r||4, 0, Math.PI*2); ctx.fill(); } };
-						b.game = this.game;
-						g.spawnEnemyBullet(b);
-					}
-				},
+
 
 				// Aimed triple: three bullets towards player with small angular offsets
 				_fireAimed(g){
@@ -413,8 +368,18 @@
 					}
 				},
 
-				// Basic pattern (default): reuse aimed triple
-				_basic(g){ this._fireAimed(g); },
+				// Basic pattern (default): repeating sequence A A F A A ...
+				_basic(g){
+					// sequence: 0:Aimed, 1:Aimed, 2:Fan, 3:Aimed, 4:Aimed
+					this._basic_seq = (this._basic_seq || 0);
+					const seq = this._basic_seq % 5;
+					if (seq === 2) {
+						this._fireFan(g);
+					} else {
+						this._fireAimed(g);
+					}
+					this._basic_seq++;
+				},
 
 				// Skill pattern 1: dense fan (wide and many) — also used as repeated burst during a 7s skill
 				_skill1(g){
@@ -466,17 +431,7 @@
 					}
 				},
 
-				// Skill pattern 4: sweeping wide fan (delayed wide sweep)
-				_skill4(g){
-					const count = 9; const spreadDeg = 140; const spread = spreadDeg*Math.PI/180; const center=Math.PI/2;
-					for (let i=0;i<count;i++){
-						const t = count===1?0.5:i/(count-1);
-						const angle = center - spread/2 + t*spread;
-						const speed = 140 + Math.random()*30;
-						const b = { x:this.x,y:this.y+30,r:4,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,owner:'enemy', update(dt){ this.x+=this.vx*dt; this.y+=this.vy*dt; if(this.y > (this.game?this.game.height:600)+60) this.dead=true; }, draw(ctx){ ctx.fillStyle='lightgreen'; ctx.beginPath(); ctx.arc(this.x,this.y,this.r||4,0,Math.PI*2); ctx.fill(); } };
-						b.game=this.game; g.spawnEnemyBullet(b);
-					}
-				},
+
 
 				// Ultimate patterns placeholders (not invoked yet) — left for future HP-based triggers
 				_ult1(g){ console.log('ULTIMATE 1 (placeholder)'); /* complex pattern to be added later */ },

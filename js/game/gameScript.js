@@ -35,6 +35,8 @@
    * 주의: 이 파일은 최소 기능의 초안이며, 실제 게임 로직은 단계별로 확장해야 합니다.
    */
   const Game = {
+  // safety caps to avoid unbounded memory growth from runaway spawners
+  _MAX_BULLETS: 8000,
   canvas: null,
   ctx: null,
   width: 800,
@@ -66,12 +68,15 @@
       // load style variables from CSS (allows theming via css/game.css)
       try{ this._loadStyles(); }catch(e){ console.warn('Failed to load styles:', e); }
       // 브라우저 크기 변경 시 캔버스 재조정
-      window.addEventListener('resize', ()=> this.resize());
-
-      // 간단한 입력 상태 객체: 키가 눌리면 true, 떼면 false
-      this.keys = {};
-      window.addEventListener('keydown', (e)=>{ this.keys[e.key] = true; });
-      window.addEventListener('keyup', (e)=>{ this.keys[e.key] = false; });
+      // prevent double-init of global listeners if init is (accidentally) called multiple times
+      if (!this._inited){
+        window.addEventListener('resize', ()=> this.resize());
+        // 간단한 입력 상태 객체: 키가 눌리면 true, 떼면 false
+        this.keys = {};
+        window.addEventListener('keydown', (e)=>{ this.keys[e.key] = true; });
+        window.addEventListener('keyup', (e)=>{ this.keys[e.key] = false; });
+        this._inited = true;
+      }
 
       // 스테이지 모듈이 호출할 수 있도록 전역 registerStage 노출
       // 사용법: stage 스크립트는 window.registerStage('stage1', module) 호출
@@ -195,6 +200,9 @@
       if (this.stageModule && typeof this.stageModule.stop === 'function'){
         try{ this.stageModule.stop(); }catch(e){}
       }
+      // clear entities to free references and avoid holding memory between stages
+      this.enemies = [];
+      this.bullets = [];
       this.stageModule = null;
     },
 
@@ -226,16 +234,86 @@
         if (b.dead) this.bullets.splice(i,1);
       }
 
-      // 적 업데이트 및 사망 처리
-      for (let i = this.enemies.length-1; i>=0; i--){
+      // Ensure bullets that drift far outside the game area are removed even if their
+      // own update() doesn't mark them dead. This prevents stray bullets from lingering.
+      if (this.bullets.length){
+        const minX = -200; const minY = -200;
+        const maxX = (this.width || 800) + 200;
+        const maxY = (this.height || 600) + 200;
+        for (let i = this.bullets.length - 1; i >= 0; i--){
+          const b = this.bullets[i];
+          if (!b) continue;
+          // only check numeric positions
+          if (typeof b.x === 'number' && typeof b.y === 'number'){
+            if (b.x < minX || b.x > maxX || b.y < minY || b.y > maxY){
+              // mark dead so it will be removed
+              this.bullets.splice(i,1);
+            }
+          }
+        }
+      }
+
+      // Safety trim: if bullets array grows beyond safe cap, drop oldest non-boss bullets
+      if (this.bullets.length > (this._MAX_BULLETS || 1200)){
+        // remove oldest (front) bullets until under cap
+        const excess = this.bullets.length - (this._MAX_BULLETS || 1200);
+        // Prefer removing bullets owned by 'enemy' first
+        let removed = 0;
+        for (let i = 0; i < this.bullets.length && removed < excess; i++){
+          if (this.bullets[i] && this.bullets[i].owner === 'enemy'){
+            this.bullets.splice(i,1);
+            i--;
+            removed++;
+          }
+        }
+        // If still need to trim, remove from the front regardless
+        while (this.bullets.length > (this._MAX_BULLETS || 1200)) this.bullets.shift();
+        console.warn('Bullet pool trimmed to avoid memory pressure, new length=', this.bullets.length);
+      }
+
+      // 적(보스 전용) 업데이트
+      // 주의: 이 게임은 보스 전용이므로 일반 몬스터 생성/삭제 로직은 제거하고
+      // 보스의 상태 변화(예: hp<=0)를 감지하면 스테이지 훅을 호출합니다.
+      for (let i = 0; i < this.enemies.length; i++){
         const e = this.enemies[i];
+        if (!e) continue;
         if (e.update) e.update(dt);
-        if (e.hp <= 0 || e.dead) {
-          // 보스가 죽으면 스테이지 모듈의 onBossDefeated를 호출
-          if (e.isBoss && this.stageModule && typeof this.stageModule.onBossDefeated === 'function'){
+        // 보스가 처치된 경우, 스테이지가 이를 처리하도록 onBossDefeated 훅만 호출
+        if (e.isBoss && (e.hp <= 0 || e.dead)){
+          if (this.stageModule && typeof this.stageModule.onBossDefeated === 'function'){
             try{ this.stageModule.onBossDefeated(); }catch(err){}
           }
-          this.enemies.splice(i,1);
+        }
+      }
+
+      // 플레이어와 적(보스 포함)의 접촉 충돌 처리 (player.r 사용)
+      // 플레이어가 무적이면 충돌 판정을 건너뜁니다
+      if (this.player && !this.player.invulnerable){
+        const px = (typeof this.player.x === 'number') ? this.player.x : 0;
+        const py = (typeof this.player.y === 'number') ? this.player.y : 0;
+        const pr = (typeof this.player.r === 'number') ? this.player.r : Math.max((this.player.w||0)/2, (this.player.h||0)/2);
+        for (let ei = this.enemies.length - 1; ei >= 0; ei--){
+          const en = this.enemies[ei];
+          if (!en) continue;
+          // enemy bounding box (treat x,y as center)
+          const ew = (typeof en.w === 'number') ? en.w : ((typeof en.r === 'number') ? en.r*2 : 0);
+          const eh = (typeof en.h === 'number') ? en.h : ((typeof en.r === 'number') ? en.r*2 : 0);
+          const ex = (typeof en.x === 'number') ? en.x - (ew/2) : 0;
+          const ey = (typeof en.y === 'number') ? en.y - (eh/2) : 0;
+          // circle-rect closest point
+          const closestX = Math.max(ex, Math.min(px, ex + ew));
+          const closestY = Math.max(ey, Math.min(py, ey + eh));
+          const dx = px - closestX;
+          const dy = py - closestY;
+          if (dx*dx + dy*dy <= (pr * pr)){
+            // collision: apply 1 damage and trigger invulnerability
+            this.player.hp = Math.max(0, (this.player.hp || 0) - 1);
+            this.player.invulnerable = true;
+            this.player.invulTimer = (this.player.invulDur || 2.0);
+            this.player.invulBlinkTimer = 0;
+            // stop after first collision this frame
+            break;
+          }
         }
       }
 
@@ -254,9 +332,66 @@
         }
       }
 
+      // 적(혹은 적 소유) 탄막과 플레이어 충돌 처리
+      // Use player's hit pixel radius (player.r) rather than its box size for collision
+      if (this.player){
+        const px = (typeof this.player.x === 'number') ? this.player.x : 0;
+        const py = (typeof this.player.y === 'number') ? this.player.y : 0;
+        const pr = (typeof this.player.r === 'number') ? this.player.r : Math.max((this.player.w||0)/2, (this.player.h||0)/2);
+        for (let bi = this.bullets.length-1; bi>=0; bi--){
+          const b = this.bullets[bi];
+          if (!b || b.owner !== 'enemy') continue;
+          // skip if player is currently invulnerable
+          if (this.player.invulnerable) continue;
+          // compute bullet radius (fallback to 0 if unknown)
+          const bx = (typeof b.x === 'number') ? b.x : 0;
+          const by = (typeof b.y === 'number') ? b.y : 0;
+          const br = (typeof b.r === 'number') ? b.r : (b.w? Math.max(b.w, b.h)/2 : 0);
+          const dx = bx - px;
+          const dy = by - py;
+          const dist2 = dx*dx + dy*dy;
+          const rad = (pr || 0) + (br || 0);
+          if (dist2 <= rad * rad){
+            // apply damage (default 1)
+            const dmg = (typeof b.damage === 'number') ? b.damage : 1;
+            this.player.hp = Math.max(0, (this.player.hp || 0) - dmg);
+            // trigger invulnerability and blinking
+            this.player.invulnerable = true;
+            this.player.invulTimer = (this.player.invulDur || 2.0);
+            this.player.invulBlinkTimer = 0;
+            // remove the bullet immediately
+            try{ this.bullets.splice(bi,1); }catch(e){}
+            // stop processing other bullets this frame (player is now invulnerable)
+            break;
+          }
+        }
+      }
+
       // 스테이지 모듈의 추가 업데이트 훅 호출 (옵션)
       if (this.stageModule && typeof this.stageModule.onUpdate === 'function'){
         try{ this.stageModule.onUpdate(dt); }catch(e){}
+      }
+
+      // player death handling: if player's hp reaches 0, stop the game and show lose overlay
+      if (this.player && typeof this.player.hp === 'number' && this.player.hp <= 0 && !this._lost){
+        this._lost = true;
+        // stop the main loop so gameplay stops. We keep HUD intact.
+        this.running = false;
+        // dynamically load lose.js (if not already loaded) and call showLose
+        const loadAndShow = () => {
+          if (typeof window.showLose === 'function'){
+            try{ window.showLose({ image: 'assets/character/noel/Noel_lose.png' }); }catch(e){}
+          }
+        };
+        if (typeof window.showLose === 'function'){
+          loadAndShow();
+        } else {
+          const s = document.createElement('script');
+          s.src = 'js/game/lose.js';
+          s.onload = loadAndShow;
+          s.onerror = function(){ console.warn('Failed to load lose.js'); };
+          document.body.appendChild(s);
+        }
       }
     },
 
@@ -373,10 +508,11 @@
   // background
   ctx.fillStyle = this.styles.innerBg || '#12202b';
   ctx.fillRect(barX, barY, barWidthV, barHeightV);
-  // filled portion (from top downward)
+  // filled portion: anchor at bottom so the bar 'disappears' from the top downward
   const fillH = Math.floor(barHeightV * pct);
   ctx.fillStyle = this.styles.accent || '#ef4444';
-  ctx.fillRect(barX, barY, barWidthV, fillH);
+  // draw filled area anchored to bottom
+  ctx.fillRect(barX, barY + (barHeightV - fillH), barWidthV, fillH);
   // border
   ctx.strokeStyle = this.styles.hpBorder || '#274050';
   ctx.lineWidth = 2;
@@ -411,15 +547,30 @@
     },
 
     // 엔티티 생성 헬퍼들 (스테이지/플레이어가 호출)
-    spawnEnemy(entity){ this.enemies.push(entity); return entity; },
-    spawnPlayerBullet(b){ this.bullets.push(b); return b; },
-    spawnEnemyBullet(b){ this.bullets.push(b); return b; },
-    spawnBoss(entity){ entity.isBoss = true; this.enemies.push(entity); return entity; },
+    spawnPlayerBullet(b){
+      if (this.bullets.length >= (this._MAX_BULLETS || 1200)){
+        // drop player bullets if pool full to avoid memory blowup
+        return null;
+      }
+      this.bullets.push(b); return b;
+    },
+    spawnEnemyBullet(b){
+      if (this.bullets.length >= (this._MAX_BULLETS || 1200)){
+        // skip spawning to prevent runaway growth
+        return null;
+      }
+      this.bullets.push(b); return b;
+    },
+    spawnBoss(entity){
+      // Directly register boss entity. No generic enemy caps in boss-only mode.
+      entity.isBoss = true;
+      this.enemies.push(entity);
+      return entity;
+    },
 
     /**
      * 스테이지 종료 처리
      * - 현재는 단순히 루프를 멈추고 alert를 띄움
-     * - 실제 게임에서는 결과 화면, 보상, 다음 스테이지 로직 등을 연결하면 됨
      */
     endStage(){
       this.stopStage();

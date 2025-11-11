@@ -25,7 +25,16 @@
       languageLabel: '언어',
       titleMain: '은하수 속의',
       titleSub: '조각배',
-      starWord: '은하수'
+      starWord: '은하수',
+      titleButton: '타이틀',
+      practiceLabel: '연습모드',
+      stages: {
+        stage1: '은하 협곡', stage2: '바다의 섬', stage3: '초신성 폭발', stage4: 'Coming Soon'
+      },
+      custom: { title: '커스터마이징', tabChar: '캐릭터', tabShip: '조각배', tabProjectile: '발사체', customizeBtn: '커스텀마이징', myPage: '내 정보' },
+      characters: { rea: '레아', noa: '노아', noel: '노엘' },
+      ships: { woodskiff: '나무 조각배' },
+      projectiles: { basic: '기본 샷', fast: '빠른 발사', heavy: '강력 탄환', energy: '에너지 펄스', plasma: '플라즈마', quantum: '퀀텀' }
     },
     en: {
       start: 'Start',
@@ -35,11 +44,19 @@
       save: 'Save',
       close: 'Close',
       soundLabel: 'Sound',
-      languageLabel: 'Language'
-      ,
+      languageLabel: 'Language',
       titleMain: 'skiff in the',
       titleSub: 'milky way',
-      starWord: 'skiff'
+      starWord: 'skiff',
+      titleButton: 'Title',
+      practiceLabel: 'Practice',
+      stages: {
+        stage1: 'Galaxy Canyon', stage2: 'Island of the Sea', stage3: 'Supernova Burst', stage4: 'Coming Soon'
+      },
+      custom: { title: 'Customization', tabChar: 'Character', tabShip: 'Skiff', tabProjectile: 'Projectile', customizeBtn: 'Customize', myPage: 'My Page' },
+      characters: { rea: 'Rea', noa: 'Noa', noel: 'Noel' },
+      ships: { woodskiff: 'Wood Skiff' },
+      projectiles: { basic: 'Basic Shot', fast: 'Fast Bolt', heavy: 'Heavy Shell', energy: 'Energy Pulse', plasma: 'Plasma Beam', quantum: 'Quantum Ray' }
     },
     ja: {
       start: 'スタート',
@@ -49,13 +66,23 @@
       save: '保存',
       close: '閉じる',
       soundLabel: 'サウンド',
-      languageLabel: '言語'
-      ,
+      languageLabel: '言語',
       titleMain: '銀河の中の',
       titleSub: '小舟',
-      starWord: '銀河'
+      starWord: '銀河',
+      titleButton: 'タイトル',
+      practiceLabel: '練習モード',
+      stages: {
+        stage1: '銀河キャニオン', stage2: '海の島', stage3: '超新星爆発', stage4: 'Coming Soon'
+      },
+      custom: { title: 'カスタマイズ', tabChar: 'キャラクター', tabShip: '小舟', tabProjectile: '弾', customizeBtn: 'カスタマイズ', myPage: 'マイページ' },
+      characters: { rea: 'レア', noa: 'ノア', noel: 'ノエル' },
+      ships: { woodskiff: '木の小舟' },
+      projectiles: { basic: 'ベーシック', fast: 'ファスト', heavy: 'ヘビー', energy: 'エネルギー', plasma: 'プラズマ', quantum: 'クォンタム' }
     }
   };
+
+  // (All translation keys are consolidated above in the `translations` object.)
 
   function readSettings(){
     try{
@@ -109,6 +136,8 @@
       const langLabel = modal.querySelector('.settings-language-label');
       if (langLabel) langLabel.textContent = t.languageLabel;
     }
+    // broadcast a languagechange event for other modules to react
+    try{ document.dispatchEvent(new CustomEvent('languagechange', { detail: { language: lang } })); }catch(e){}
   }
 
   function open(){
@@ -318,6 +347,8 @@
       writeSettings(now);
       if (newSettings.language) applyLanguage(newSettings.language);
     };
+    // expose translations so other modules can read localized strings
+    window.Settings.translations = translations;
   })();
 
 })();

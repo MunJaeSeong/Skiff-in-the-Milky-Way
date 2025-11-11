@@ -234,6 +234,50 @@
 	document.addEventListener('DOMContentLoaded', () => {
 		renderStageList('stageList');
 
+		// localization helper: update UI strings according to active language
+		function updateLocalization(){
+			const lang = (window.Settings && typeof window.Settings.get === 'function') ? window.Settings.get().language : 'ko';
+			const translations = (window.Settings && window.Settings.translations) ? window.Settings.translations : {};
+			const t = translations[lang] || {};
+
+			// update customize button text
+			const customizeBtn = document.getElementById('customizeBtn');
+			if (customizeBtn) customizeBtn.textContent = (t.custom && t.custom.customizeBtn) || '커스텀마이징';
+
+			// update stage titles (each .stage-item has dataset.stageId)
+			const list = document.querySelectorAll('.stage-item');
+			list.forEach(li => {
+				const id = li.dataset.stageId;
+				const titleEl = li.querySelector('.stage-title');
+				if (!titleEl) return;
+				const override = (t.stages && t.stages[id]);
+				if (override) titleEl.textContent = override;
+			});
+
+			// update the top-right buttons if present
+			const titleBtn = document.getElementById('btnToTitle');
+			const settingsBtn = document.getElementById('selectSettingsBtn');
+			if (titleBtn) titleBtn.textContent = (t.titleButton) || '타이틀';
+			if (settingsBtn) settingsBtn.textContent = (t.settings) || ((t.settingsTitle) ? t.settingsTitle : '환경설정');
+
+			// update practice mode label next to checkbox (preserve the input element)
+			const practiceLabelEl = document.querySelector('.practice-label');
+			if (practiceLabelEl){
+				try{
+					const input = practiceLabelEl.querySelector('input');
+					const labelText = (t.practiceLabel) || '연습모드';
+					// clear and re-append the input so we can set the localized text
+					practiceLabelEl.innerHTML = '';
+					if (input) practiceLabelEl.appendChild(input);
+					practiceLabelEl.appendChild(document.createTextNode(' ' + labelText));
+				}catch(e){ /* ignore */ }
+			}
+		}
+
+		// try an initial localization pass (may run before setting.js loads); also react to future changes
+		try{ updateLocalization(); }catch(e){}
+		document.addEventListener('languagechange', function(ev){ try{ updateLocalization(); }catch(e){} });
+
 		// wire customize button to open the Custom UI if available
 		const customizeBtn = document.getElementById('customizeBtn');
 		if (customizeBtn) {
@@ -247,11 +291,71 @@
 			});
 		}
 
+		// --- top-right quick actions: Title and Settings buttons ---
+		// create a small fixed container in the top-right of the viewport so it's visible
+		(function createTopRightButtons(){
+			const container = document.createElement('div');
+			container.className = 'select-top-right-buttons';
+			container.style.cssText = 'position:fixed;top:12px;right:12px;display:flex;gap:8px;z-index:9999;align-items:center;pointer-events:auto;';
+
+			// Title button: returns user to the start screen / title
+			const titleBtn = document.createElement('button');
+			titleBtn.id = 'btnToTitle';
+			titleBtn.type = 'button';
+			titleBtn.className = 'btn to-title';
+			titleBtn.setAttribute('aria-label','타이틀로 돌아가기');
+			titleBtn.textContent = '타이틀';
+
+			// Settings button: opens the Settings modal implemented in js/setting.js
+			const settingsBtn = document.createElement('button');
+			settingsBtn.id = 'selectSettingsBtn';
+			settingsBtn.type = 'button';
+			settingsBtn.className = 'btn settings';
+			settingsBtn.setAttribute('aria-label','환경설정 열기');
+			settingsBtn.textContent = '환경설정';
+
+			// click handlers
+			titleBtn.addEventListener('click', function(){
+				// show start screen, hide select UI and any game canvas
+				const selectUI = document.getElementById('gameSelectUI');
+				const startScreen = document.getElementById('startScreen');
+				const canvasEl = document.getElementById('gameCanvas');
+				const selectCanvas = document.getElementById('gameSelectCanvas');
+				if (selectUI) { selectUI.style.display = 'none'; selectUI.setAttribute('aria-hidden','true'); }
+				if (canvasEl) canvasEl.style.display = 'none';
+				if (selectCanvas) selectCanvas.style.display = 'none';
+				if (startScreen) { startScreen.style.display = ''; startScreen.removeAttribute('aria-hidden'); }
+				// focus primary start button if present
+				const btnStart = document.getElementById('btnStart');
+				if (btnStart) try{ btnStart.focus(); }catch(e){}
+			});
+
+			settingsBtn.addEventListener('click', function(){
+				// prefer native API if available
+				if (window.Settings && typeof window.Settings.open === 'function'){
+					window.Settings.open();
+					return;
+				}
+				// fallback: trigger existing header settings button if present
+				const hdr = document.getElementById('btnSettings');
+				if (hdr) try{ hdr.click(); }catch(e){}
+			});
+
+			container.appendChild(titleBtn);
+			container.appendChild(settingsBtn);
+
+			// attach to the select UI so the buttons are only visible when the stage-select screen is shown
+			const selectUIParent = document.getElementById('gameSelectUI') || document.body;
+			selectUIParent.appendChild(container);
+		})();
+
 		// Expose for debugging and future wiring
 		window.StageSelect = window.StageSelect || {};
 		window.StageSelect.stages = stages;
 		window.StageSelect.render = () => renderStageList('stageList');
 		window.StageSelect.getElement = () => document.getElementById('stageList');
+		// expose a localization refresh so callers (e.g. main.js) can force-update labels
+		if (typeof updateLocalization === 'function') window.StageSelect.localize = updateLocalization;
 	});
 
 })();
