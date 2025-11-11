@@ -301,13 +301,20 @@
           musicVol.disabled = false; musicVol.removeAttribute('aria-hidden');
           voiceVol.disabled = false; voiceVol.removeAttribute('aria-hidden');
         }
+          // notify audio managers that settings changed (mute/unmute)
+          try{ if (window.MenuBGM && typeof window.MenuBGM.updateVolume === 'function') window.MenuBGM.updateVolume(); }catch(e){}
+          try{ document.dispatchEvent(new Event('settingschange')); }catch(e){}
       }
     });
     musicVol.addEventListener('input', function(){
       const s = readSettings(); s.musicVolume = parseFloat(musicVol.value); writeSettings(s);
+        try{ if (window.MenuBGM && typeof window.MenuBGM.updateVolume === 'function') window.MenuBGM.updateVolume(); }catch(e){}
+        try{ document.dispatchEvent(new Event('settingschange')); }catch(e){}
     });
     voiceVol.addEventListener('input', function(){
       const s = readSettings(); s.voiceVolume = parseFloat(voiceVol.value); writeSettings(s);
+        try{ if (window.MenuBGM && typeof window.MenuBGM.updateVolume === 'function') window.MenuBGM.updateVolume(); }catch(e){}
+        try{ document.dispatchEvent(new Event('settingschange')); }catch(e){}
     });
     sel.addEventListener('change', function(){
       applyLanguage(sel.value);
@@ -324,6 +331,8 @@
       writeSettings(s);
       // apply language one more time (defensive)
       applyLanguage(s.language);
+        try{ if (window.MenuBGM && typeof window.MenuBGM.updateVolume === 'function') window.MenuBGM.updateVolume(); }catch(e){}
+        try{ document.dispatchEvent(new Event('settingschange')); }catch(e){}
       // close and restore UI
       try{ closeModal(); }catch(e){ /* best-effort */ }
     });

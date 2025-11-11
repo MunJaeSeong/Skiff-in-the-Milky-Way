@@ -307,6 +307,8 @@
       if (!this.canvas) this.init('gameCanvas');
       // 기존 스테이지/루프 정리
       this.stopStage();
+      // stop menu BGM when entering a gameplay stage
+      try{ if (window.MenuBGM && typeof window.MenuBGM.stop === 'function') window.MenuBGM.stop(); }catch(e){}
       // clear lost state so defeat detection works after restart
       this._lost = false;
       // 저장된 커스터마이즈를 읽어 플레이어에 적용
@@ -382,6 +384,8 @@
       try{ if (this._bgmAudio){ try{ this._bgmAudio.pause(); }catch(e){} this._bgmAudio = null; } }catch(e){}
       // hide on-screen exit button when stage stopped
       try{ const exitHudBtn = document.getElementById('game-exit-btn'); if (exitHudBtn) exitHudBtn.style.display = 'none'; }catch(e){}
+      // resume menu BGM when returning to menus
+      try{ if (window.MenuBGM && typeof window.MenuBGM.play === 'function') window.MenuBGM.play(); }catch(e){}
     },
 
     /** 메인 루프 스케줄러 (requestAnimationFrame 기반) */

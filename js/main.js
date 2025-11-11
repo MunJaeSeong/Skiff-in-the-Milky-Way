@@ -102,4 +102,6 @@ document.addEventListener('DOMContentLoaded', function(){
       container.appendChild(s);
     }
   })();
+  // start menu background music (best-effort; autoplay may be blocked until user gesture)
+  try{ if (window.MenuBGM && typeof window.MenuBGM.play === 'function') window.MenuBGM.play(); }catch(e){}
 });
