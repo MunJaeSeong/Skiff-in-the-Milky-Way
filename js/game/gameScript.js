@@ -22,7 +22,7 @@
     }catch(e){
       return {};
     }
-  }
+      }
 
   /**
    * Game 오브젝트 (간단한 런타임 스캐폴드)
@@ -79,6 +79,32 @@
         this.keys = {};
         window.addEventListener('keydown', (e)=>{ this.keys[e.key] = true; });
         window.addEventListener('keyup', (e)=>{ this.keys[e.key] = false; });
+        // allow ESC to open the exit confirmation while in-game
+        // create a persistent on-screen "나가기" button (hidden until a stage runs)
+        try{
+          let exitHudBtn = document.getElementById('game-exit-btn');
+          if (!exitHudBtn){
+            exitHudBtn = document.createElement('button');
+            exitHudBtn.id = 'game-exit-btn';
+            exitHudBtn.type = 'button';
+            exitHudBtn.textContent = '나가기';
+            document.body.appendChild(exitHudBtn);
+            exitHudBtn.style.position = 'fixed';
+            exitHudBtn.style.right = '18px';
+            exitHudBtn.style.top = '18px';
+            exitHudBtn.style.zIndex = 10020;
+            exitHudBtn.style.padding = '8px 12px';
+            exitHudBtn.style.borderRadius = '8px';
+            exitHudBtn.style.border = '1px solid rgba(255,255,255,0.06)';
+            exitHudBtn.style.background = '#2f2f2f';
+            exitHudBtn.style.color = '#fff';
+            exitHudBtn.style.cursor = 'pointer';
+            exitHudBtn.style.display = 'none';
+            exitHudBtn.addEventListener('click', ()=>{
+              try{ if (typeof window.showExitConfirm === 'function') window.showExitConfirm(); else if (this.showExitConfirm) this.showExitConfirm(); }catch(e){}
+            });
+          }
+        }catch(e){}
         this._inited = true;
       }
 
@@ -333,6 +359,8 @@
           }
         }catch(e){ /* best-effort bgm start */ }
         if (stageModule && typeof stageModule.start === 'function') stageModule.start();
+        // show the on-screen exit button when a stage is running
+        try{ const exitHudBtn = document.getElementById('game-exit-btn'); if (exitHudBtn) exitHudBtn.style.display = ''; }catch(e){}
         return stageModule;
       });
     },
@@ -352,6 +380,8 @@
       this._lost = false;
       // stop background music if any
       try{ if (this._bgmAudio){ try{ this._bgmAudio.pause(); }catch(e){} this._bgmAudio = null; } }catch(e){}
+      // hide on-screen exit button when stage stopped
+      try{ const exitHudBtn = document.getElementById('game-exit-btn'); if (exitHudBtn) exitHudBtn.style.display = 'none'; }catch(e){}
     },
 
     /** 메인 루프 스케줄러 (requestAnimationFrame 기반) */
@@ -583,15 +613,19 @@
         // dynamically load lose.js (if not already loaded) and call showLose
         const loadAndShow = () => {
           if (typeof window.showLose === 'function'){
-            try{ window.showLose({ image: 'assets/character/noel/Noel_lose.png' }); }catch(e){}
+            try{
+              // hide on-screen exit button while overlays are visible
+              try{ const exitHudBtn = document.getElementById('game-exit-btn'); if (exitHudBtn) exitHudBtn.style.display = 'none'; }catch(e){}
+              window.showLose({ image: 'assets/character/noel/Noel_lose.png' });
+            }catch(e){}
           }
         };
         if (typeof window.showLose === 'function'){
-          loadAndShow();
+            loadAndShow();
         } else {
           const s = document.createElement('script');
           s.src = 'js/game/lose.js';
-          s.onload = loadAndShow;
+          s.onload = function(){ try{ const exitHudBtn = document.getElementById('game-exit-btn'); if (exitHudBtn) exitHudBtn.style.display = 'none'; }catch(e){} loadAndShow(); };
           s.onerror = function(){ console.warn('Failed to load lose.js'); };
           document.body.appendChild(s);
         }
@@ -812,7 +846,10 @@
       // dynamically load win.js and call showWin (fallback to alert if unavailable)
       const loadAndShow = () => {
         if (typeof window.showWin === 'function'){
-          try{ window.showWin(); }catch(e){ console.error('showWin failed', e); }
+          try{
+            try{ const exitHudBtn = document.getElementById('game-exit-btn'); if (exitHudBtn) exitHudBtn.style.display = 'none'; }catch(e){}
+            window.showWin();
+          }catch(e){ console.error('showWin failed', e); }
         } else {
           try{ alert('Stage complete!'); }catch(e){}
         }
@@ -822,14 +859,130 @@
       } else {
         const s = document.createElement('script');
         s.src = 'js/game/win.js';
-        s.onload = loadAndShow;
+        s.onload = function(){ try{ const exitHudBtn = document.getElementById('game-exit-btn'); if (exitHudBtn) exitHudBtn.style.display = 'none'; }catch(e){} loadAndShow(); };
         s.onerror = function(){ try{ alert('Stage complete!'); }catch(e){ console.warn('Failed to load win.js'); } };
         document.body.appendChild(s);
       }
-    }
-  };
+      }
+      ,
+      /**
+       * Show an in-game exit confirmation. Pauses the game while visible.
+       * If user confirms, returns to stage select. If user cancels, counts down 3 seconds and resumes.
+       */
+      showExitConfirm(){
+        try{
+          const self = this;
+          if (self._exitOverlayShown) return;
+          self._exitOverlayShown = true;
+          // pause game
+          self._exitPrevRunning = !!self.running;
+          try{ self.running = false; }catch(e){}
+
+          const canvas = this.canvas || document.getElementById('gameCanvas');
+          const rect = canvas ? canvas.getBoundingClientRect() : { width: window.innerWidth, height: window.innerHeight, left:0, top:0 };
+
+          let overlay = document.getElementById('game-exit-overlay');
+          if (!overlay){ overlay = document.createElement('div'); overlay.id = 'game-exit-overlay'; document.body.appendChild(overlay); }
+          overlay.style.position = 'absolute';
+          overlay.style.left = (rect.left || 0) + 'px';
+          overlay.style.top = (rect.top || 0) + 'px';
+          overlay.style.width = (rect.width || window.innerWidth) + 'px';
+          overlay.style.height = (rect.height || window.innerHeight) + 'px';
+          overlay.style.display = 'flex';
+          overlay.style.alignItems = 'center';
+          overlay.style.justifyContent = 'center';
+          overlay.style.zIndex = 10010;
+          overlay.style.background = 'rgba(0,0,0,0.6)';
+
+          let panel = document.getElementById('game-exit-panel');
+          if (!panel){ panel = document.createElement('div'); panel.id = 'game-exit-panel'; overlay.appendChild(panel); }
+          panel.style.minWidth = '320px';
+          panel.style.padding = '18px';
+          panel.style.borderRadius = '12px';
+          panel.style.background = '#1a1f26';
+          panel.style.color = '#fff';
+          panel.style.textAlign = 'center';
+          panel.style.boxShadow = '0 12px 30px rgba(0,0,0,0.6)';
+
+          let msg = document.getElementById('game-exit-msg');
+          if (!msg){ msg = document.createElement('div'); msg.id = 'game-exit-msg'; panel.appendChild(msg); }
+          msg.style.fontSize = '20px';
+          msg.style.marginBottom = '12px';
+          msg.textContent = '나가시겠습니까?';
+
+          let countdown = document.getElementById('game-exit-countdown');
+          if (!countdown){ countdown = document.createElement('div'); countdown.id = 'game-exit-countdown'; panel.appendChild(countdown); }
+          countdown.style.fontSize = '28px';
+          countdown.style.marginBottom = '12px';
+          countdown.style.display = 'none';
+
+          let btnWrap = document.getElementById('game-exit-buttons');
+          if (!btnWrap){ btnWrap = document.createElement('div'); btnWrap.id = 'game-exit-buttons'; panel.appendChild(btnWrap); }
+          btnWrap.style.display = 'flex';
+          btnWrap.style.gap = '12px';
+          btnWrap.style.justifyContent = 'center';
+
+          let yesBtn = document.getElementById('game-exit-yes');
+          if (!yesBtn){ yesBtn = document.createElement('button'); yesBtn.id = 'game-exit-yes'; yesBtn.type='button'; yesBtn.textContent='예'; btnWrap.appendChild(yesBtn); }
+          let noBtn = document.getElementById('game-exit-no');
+          if (!noBtn){ noBtn = document.createElement('button'); noBtn.id = 'game-exit-no'; noBtn.type='button'; noBtn.textContent='아니오'; btnWrap.appendChild(noBtn); }
+          [yesBtn,noBtn].forEach(b => { b.style.padding = '10px 14px'; b.style.borderRadius='8px'; b.style.border='1px solid rgba(255,255,255,0.06)'; b.style.background='#2f2f2f'; b.style.color='#fff'; b.style.cursor='pointer'; });
+
+          try{ if (self._exitCountdownTimer){ clearInterval(self._exitCountdownTimer); self._exitCountdownTimer = null; } }catch(e){}
+
+          const cleanupAndHide = function(){
+            try{ if (self._exitCountdownTimer){ clearInterval(self._exitCountdownTimer); self._exitCountdownTimer = null; } }catch(e){}
+            try{ const o = document.getElementById('game-exit-overlay'); if (o && o.parentNode) o.parentNode.removeChild(o); }catch(e){}
+            self._exitOverlayShown = false;
+          };
+
+          const exitToSelect = function(){
+            try{ cleanupAndHide(); }catch(e){}
+            try{ self.stopStage(); }catch(e){}
+            try{ const selectUI = document.getElementById('gameSelectUI');
+              const startScreen = document.getElementById('startScreen');
+              const canvasEl = document.getElementById('gameCanvas');
+              const selectCanvas = document.getElementById('gameSelectCanvas');
+              if (canvasEl) canvasEl.style.display = 'none';
+              if (selectCanvas) selectCanvas.style.display = '';
+              if (startScreen) { startScreen.style.display = 'none'; startScreen.setAttribute('aria-hidden','true'); }
+              if (selectUI) { selectUI.style.display = ''; selectUI.removeAttribute('aria-hidden'); }
+              try{ if (window.StageSelect && typeof window.StageSelect.localize === 'function') window.StageSelect.localize(); }catch(e){}
+              const btnCustomize = document.getElementById('customizeBtn'); if (btnCustomize) try{ btnCustomize.focus(); }catch(e){}
+            }catch(e){ console.error(e); }
+          };
+
+          yesBtn.onclick = function(){ try{ exitToSelect(); }catch(e){} };
+
+          noBtn.onclick = function(){
+            try{
+              btnWrap.style.display = 'none';
+              countdown.style.display = '';
+              let val = 3; countdown.textContent = String(val);
+              self._exitCountdownValue = val;
+              self._exitCountdownTimer = setInterval(() => {
+                try{
+                  self._exitCountdownValue = (self._exitCountdownValue || 0) - 1;
+                  if (self._exitCountdownValue > 0){ countdown.textContent = String(self._exitCountdownValue); }
+                  else {
+                    try{ clearInterval(self._exitCountdownTimer); self._exitCountdownTimer = null; }catch(e){}
+                    try{ countdown.style.display = 'none'; }catch(e){}
+                    try{ cleanupAndHide(); }catch(e){}
+                    try{ self.lastTime = performance.now(); self.running = true; self.loop(self.lastTime); }catch(e){}
+                  }
+                }catch(err){}
+              }, 1000);
+            }catch(e){}
+          };
+
+          window.hideExitConfirm = function(){ try{ if (self._exitCountdownTimer){ clearInterval(self._exitCountdownTimer); self._exitCountdownTimer = null; } }catch(e){} try{ const o=document.getElementById('game-exit-overlay'); if (o && o.parentNode) o.parentNode.removeChild(o); }catch(e){} self._exitOverlayShown = false; if (self._exitPrevRunning){ try{ self.lastTime = performance.now(); self.running = true; self.loop(self.lastTime); }catch(e){} } };
+        }catch(e){ console.error('showExitConfirm failed', e); }
+      }
+    };
 
   // 전역에 Game 객체 노출
   window.Game = window.Game || Game;
+  // expose a global shortcut to show the in-game exit confirmation bound to the runtime
+  try{ if (window.Game && typeof window.Game.showExitConfirm === 'function') window.showExitConfirm = window.Game.showExitConfirm.bind(window.Game); }catch(e){}
 
 })();
