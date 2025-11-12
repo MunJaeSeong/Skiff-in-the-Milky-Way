@@ -126,22 +126,39 @@
     // show overlay
     overlay.style.visibility = 'visible';
 
-    // stop background music (if started by Game) and play character lose voice once
+    // stop menu and stage background music (if running) and play character lose voice once
     try{
+      try{ if (window.MenuBGM && typeof window.MenuBGM.stop === 'function') window.MenuBGM.stop(); }catch(e){}
       if (window.Game && window.Game._bgmAudio){ try{ window.Game._bgmAudio.pause(); }catch(e){} window.Game._bgmAudio = null; }
     }catch(e){}
     try{
-      // determine character id from saved custom key
+      // build and try candidate lose voice paths (keep trying until one plays)
       const STORAGE_KEY = 'skiff_custom_v1';
       let charId = null;
       try{ const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; charId = saved.character || saved.char || null; }catch(e){ charId = null; }
       if (!charId) charId = 'noel';
-      const voicePath = `assets/audio/character/${charId}_lose_voice.wav`;
-      const a = new Audio(voicePath);
-      a.loop = false;
-      try{ const s = (window.Settings && window.Settings.get) ? window.Settings.get() : null; if (s && typeof s.voiceVolume === 'number') a.volume = s.voiceVolume; }catch(e){}
-      a.play().catch(()=>{});
-      overlay._voiceAudio = a;
+      const cap = charId.charAt(0).toUpperCase() + charId.slice(1);
+      const voiceCandidates = [
+        `assets/audio/character/${charId}_lose_voice.wav`,
+        `assets/audio/character/${cap}_lose_voice.wav`,
+        `assets/audio/character/${charId}/${charId}_lose_voice.wav`,
+        `assets/audio/character/${cap}/${cap}_lose_voice.wav`,
+        `assets/audio/character/${charId}/${cap}_lose_voice.wav`,
+        `assets/audio/character/${cap}/${charId}_lose_voice.wav`,
+      ];
+      voiceCandidates.push(`assets/audio/character/noel_lose_voice.wav`);
+
+      overlay._voiceAudio = null;
+      (function tryPlay(i){
+        if (i >= voiceCandidates.length) return;
+        try{
+          const src = voiceCandidates[i];
+          const a = new Audio(src);
+          a.loop = false;
+          try{ const s = (window.Settings && window.Settings.get) ? window.Settings.get() : null; if (s && typeof s.voiceVolume === 'number') a.volume = s.voiceVolume; }catch(e){}
+          a.play().then(()=>{ overlay._voiceAudio = a; }).catch(()=>{ try{ a.pause(); }catch(e){} tryPlay(i+1); });
+        }catch(e){ tryPlay(i+1); }
+      })(0);
     }catch(e){}
 
     // create action buttons container (Restart above Exit) positioned to the right of the HUD image
