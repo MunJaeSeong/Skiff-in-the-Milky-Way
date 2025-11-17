@@ -1,0 +1,1013 @@
+/*
+  파일: js/game/stage1/gameScript.js
+  설명 (중학생용 쉬운 설명):
+    이 파일은 게임 실행의 핵심 부분입니다. 게임화면을 그리는 캔버스 초기화,
+    메인 루프(시간마다 화면을 갱신하는 부분), 플레이어와 적/탄환 관리를 합니다.
+
+  주요 책임:
+    - 캔버스 초기화와 크기 조절
+    - 키 입력을 받아 플레이어가 움직일 수 있게 함
+    - 엔티티(플레이어, 적, 탄환) 목록을 관리하고 업데이트/렌더 호출
+    - 스테이지 스크립트를 동적으로 불러와서 `registerStage`로 등록되게 함
+    - 스테이지 시작/종료, 승리/패배 처리
+
+  전역 API:
+    - `window.Game` 객체를 통해 외부에서 게임을 제어할 수 있습니다.
+    - 스테이지 스크립트는 `window.registerStage('stage1', module)`로 등록해야 합니다.
+
+  쉬운 비유:
+    이 코드는 '무대 관리자' 같아요. 무대를 준비(캔버스 설정)하고, 매 프레임마다
+    배우(플레이어/적/탄환)에게 동작하라고 말하고, 화면을 그려 줍니다.
+*/
+(function(){
+  'use strict';
+
+  // 로컬스토리지에 저장된 커스터마이즈 정보 키 (Custom UI와 동일한 키 사용)
+  const STORAGE_KEY = 'skiff_custom_v1';
+
+  // 저장된 커스터마이즈 데이터를 안전하게 읽어오는 헬퍼
+  // 반환 형태: 객체 (예: { character: 'assets/character/rea.jpg', ship: 'assets/skiffs/woodskiff.png', projectile: { img: '...' } })
+  function readCustom(){
+    try{
+      // 로컬스토리지에서 JSON 파싱, 예외 발생 시 빈 객체 반환
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {};
+    }catch(e){
+      return {};
+    }
+      }
+
+  /**
+   * Game 오브젝트 (간단한 런타임 스캐폴드)
+   * 주요 책임:
+   * - 캔버스 초기화 및 리사이즈
+   * - 메인 루프(update/render)
+   * - 엔티티(플레이어, 적, 탄환) 관리
+   * - 스테이지(script) 동적 로딩 및 등록(registration)
+   *
+   * 주의: 이 파일은 최소 기능의 초안이며, 실제 게임 로직은 단계별로 확장해야 합니다.
+   */
+  const Game = {
+  // safety caps to avoid unbounded memory growth from runaway spawners
+  _MAX_BULLETS: 8000,
+  canvas: null,
+  ctx: null,
+  width: 800,
+  height: 600,
+  // HUD / score
+  score: 0,
+  highScore: 0,
+  running: false,
+    lastTime: 0,
+    rafId: null,
+    player: null,
+    enemies: [],
+    bullets: [],
+    stageModule: null,
+    registeredStages: {},
+  // HUD visual effects (e.g. low-HP attack image animation)
+  hudEffects: [],
+  // internal flag to avoid retriggering the low-HP effect repeatedly while HP stays low
+  _lowHpEffectActive: false,
+
+    /**
+     * 캔버스 초기화
+     * - canvasId: DOM에 존재하는 <canvas> 요소의 id (예: 'gameCanvas')
+     * - 윈도우 리사이즈를 감지해 캔버스 크기 동기화
+     * - 키 입력(간단한 상태 스냅샷)을 수집하여 Player가 참조할 수 있게 함
+     */
+    init(canvasId){
+      const c = document.getElementById(canvasId);
+      if (!c) throw new Error('Canvas not found: '+canvasId);
+      this.canvas = c;
+      this.ctx = c.getContext('2d');
+      this.resize();
+      // load style variables from CSS (allows theming via css/game.css)
+      try{ this._loadStyles(); }catch(e){ console.warn('Failed to load styles:', e); }
+      // 브라우저 크기 변경 시 캔버스 재조정
+      // prevent double-init of global listeners if init is (accidentally) called multiple times
+      if (!this._inited){
+        window.addEventListener('resize', ()=> this.resize());
+        // 간단한 입력 상태 객체: 키가 눌리면 true, 떼면 false
+        this.keys = {};
+        window.addEventListener('keydown', (e)=>{ this.keys[e.key] = true; });
+        window.addEventListener('keyup', (e)=>{ this.keys[e.key] = false; });
+        // allow ESC to open the exit confirmation while in-game
+        // create a persistent on-screen "나가기" button (hidden until a stage runs)
+        try{
+          let exitHudBtn = document.getElementById('game-exit-btn');
+          if (!exitHudBtn){
+            exitHudBtn = document.createElement('button');
+            exitHudBtn.id = 'game-exit-btn';
+            exitHudBtn.type = 'button';
+            exitHudBtn.textContent = '나가기';
+            document.body.appendChild(exitHudBtn);
+            exitHudBtn.style.position = 'fixed';
+            exitHudBtn.style.right = '18px';
+            exitHudBtn.style.top = '18px';
+            exitHudBtn.style.zIndex = 10020;
+            exitHudBtn.style.padding = '8px 12px';
+            exitHudBtn.style.borderRadius = '8px';
+            exitHudBtn.style.border = '1px solid rgba(255,255,255,0.06)';
+            exitHudBtn.style.background = '#2f2f2f';
+            exitHudBtn.style.color = '#fff';
+            exitHudBtn.style.cursor = 'pointer';
+            exitHudBtn.style.display = 'none';
+            exitHudBtn.addEventListener('click', ()=>{
+              try{ if (typeof window.showExitConfirm === 'function') window.showExitConfirm(); else if (this.showExitConfirm) this.showExitConfirm(); }catch(e){}
+            });
+          }
+        }catch(e){}
+        this._inited = true;
+      }
+
+      // 스테이지 모듈이 호출할 수 있도록 전역 registerStage 노출
+      // 사용법: stage 스크립트는 window.registerStage('stage1', module) 호출
+      window.registerStage = (id, module) => { this.registerStage(id, module); };
+      // If stage scripts ran earlier and stored pending registrations, consume them now
+      try{
+        if (window._pendingStages){
+          Object.keys(window._pendingStages).forEach(k => {
+            try{ this.registerStage(k, window._pendingStages[k]); }catch(e){}
+          });
+          try{ delete window._pendingStages; }catch(e){}
+        }
+      }catch(e){}
+      // 전역에 Game 레퍼런스 설정
+      window.Game = window.Game || this;
+      return this;
+    },
+
+    /**
+     * Compute HUD layout metrics so effects and other code can align to HUD elements.
+     * Returns object: { panelX, pad, barWidthV, barX, barY, barHeightV, sdX, sdY, sdSize, scoreX }
+     */
+    _computeHudLayout(){
+      const pad = (this.styles && this.styles.pad) ? this.styles.pad : 14;
+      const panelW = Math.floor(this.width * (this.styles && this.styles.panelFraction ? this.styles.panelFraction : 0.25));
+      const gameAreaW = Math.max(100, this.width - panelW);
+      const panelX = gameAreaW;
+      const barWidthVBase = (this.styles && this.styles.barWidthVBase) ? this.styles.barWidthVBase : 24;
+      const barWidthV = Math.max(8, Math.floor(barWidthVBase * 0.7));
+      const barX = panelX + pad;
+      const barY = pad;
+      const barHeightV = Math.max(80, this.height - pad*2);
+      const baseSd = Math.min((this.styles && this.styles.sdBase) ? this.styles.sdBase : 64, barHeightV, panelW - (barWidthV + pad*2));
+      let sdSize = Math.floor(baseSd * ((this.styles && this.styles.sdScale) ? this.styles.sdScale : 2.5));
+      sdSize = Math.min(sdSize, Math.max(8, panelW - (barWidthV + pad*2)), barHeightV);
+      const sdX = barX + barWidthV + 6;
+      const sdY = barY + barHeightV - sdSize;
+      const scoreX = sdX + sdSize + 6;
+      return { panelX, pad, barWidthV, barX, barY, barHeightV, sdX, sdY, sdSize, scoreX };
+    },
+
+    /**
+     * Start a low-HP attack effect using the player's character attack image
+     */
+    _startLowHpAttackEffect(){
+      try{
+        const idRaw = (this.player && this.player.characterId) ? this.player.characterId : null;
+        let id = idRaw || 'noel';
+        const candidates = [];
+        // if id looks like a path with extension, insert _attack before ext and try some variants
+        if (typeof id === 'string' && (id.startsWith('assets/') || id.match(/\.[a-zA-Z0-9]{2,4}$/))){
+          const m = id.match(/(.+)(\.[a-zA-Z0-9]{2,4})$/);
+          if (m){ candidates.push(m[1] + '_attack' + m[2]); }
+          candidates.push(id + '_attack.png');
+          candidates.push(id + '_attack.jpg');
+        } else if (typeof id === 'string'){
+          const cap = id.charAt(0).toUpperCase() + id.slice(1);
+          const lower = id.toLowerCase();
+          candidates.push(`assets/character/${id}_attack.png`);
+          candidates.push(`assets/character/${cap}_attack.png`);
+          candidates.push(`assets/character/${lower}_attack.png`);
+          candidates.push(`assets/character/${id}_attack.jpg`);
+        } else {
+          candidates.push('assets/character/noel_attack.png');
+          candidates.push('assets/character/Rea_attack.png');
+        }
+
+        // create Image that cycles through candidates on error (similar to player image loading)
+        const img = new Image();
+        img._broken = false;
+        img._candidates = candidates.slice();
+        img._ci = 0;
+        img.onload = () => { img._broken = false; };
+        img.onerror = function(){
+          const self = this;
+          self._ci = (self._ci || 0) + 1;
+          if (self._candidates && self._ci < self._candidates.length){
+            self.src = self._candidates[self._ci];
+          } else {
+            self._broken = true;
+          }
+        };
+        if (candidates.length) img.src = candidates[0];
+
+        // build effect payload
+        const m = this._computeHudLayout();
+        const size = Math.min(120, Math.max(48, Math.floor((m.sdSize || 32) * 1.5)));
+        const ef = {
+          img: img,
+          // increase the effect image to 5x the computed base size
+          w: size * 5,
+          h: size * 5,
+          // start a bit off the right edge but not too far so slide distance is short
+          x: (this.width || 800) + 12,
+          // position so the bottom of the (larger) image aligns with the bottom of the game canvas
+          y: (this.height || 600) - (size * 5),
+          slideIn: 0.5,
+          blink: 0.9,
+          blinkPeriod: 0.12,
+          fade: 0.9,
+          elapsed: 0,
+          visible: true,
+          alpha: 1
+        };
+        this.hudEffects.push(ef);
+        // play a character-specific attack voice once when the low-HP effect starts
+        try{
+          const self = this;
+          // avoid overlapping attack voice playback
+          if (!self._attackVoiceAudio || self._attackVoiceAudio.ended){
+            let charId = null;
+            try{ const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; charId = saved.character || saved.char || null; }catch(e){ charId = null; }
+            if (!charId && self.player && self.player.characterId) charId = self.player.characterId;
+            if (!charId) charId = 'Noel';
+            const cap = (typeof charId === 'string' && charId.length) ? (charId.charAt(0).toUpperCase() + charId.slice(1)) : String(charId);
+            const voicePath = `assets/audio/character/${cap}_attack_voice.wav`;
+            try{
+              const a = new Audio(voicePath);
+              a.loop = false;
+              try{ const s = (window.Settings && window.Settings.get) ? window.Settings.get() : null; if (s && typeof s.voiceVolume === 'number') a.volume = s.voiceVolume; }catch(e){}
+              a.play().catch(()=>{});
+              self._attackVoiceAudio = a;
+              a.addEventListener('ended', function(){ try{ if (self._attackVoiceAudio === a) self._attackVoiceAudio = null; }catch(e){} });
+            }catch(e){}
+          }
+        }catch(e){}
+      }catch(e){ console.warn('Failed to start low HP attack effect', e); }
+    },
+
+    /** 읽어온 CSS custom properties를 JS에서 쓸 수 있도록 파싱하여 저장합니다 */
+    _loadStyles(){
+      const cs = getComputedStyle(document.documentElement);
+      const parseNum = (name, fallback) => {
+        const v = cs.getPropertyValue(name).trim();
+        if (!v) return fallback;
+        const f = parseFloat(v);
+        return Number.isFinite(f) ? f : fallback;
+      };
+      this.styles = {
+        panelFraction: parseNum('--hud-panel-fraction', 0.25),
+        pad: parseNum('--hud-pad', 14),
+        gameBg: cs.getPropertyValue('--game-bg') || '#000022',
+        panelBg: cs.getPropertyValue('--hud-panel-bg') || '#0b1220',
+        innerBg: cs.getPropertyValue('--hud-inner-bg') || '#12202b',
+        accent: cs.getPropertyValue('--hud-accent') || '#ef4444',
+        accentBg: cs.getPropertyValue('--hud-accent-bg') || '#22303f',
+        textColor: cs.getPropertyValue('--hud-text-color') || '#fff',
+        labelFont: cs.getPropertyValue('--hud-label-font') || '16px sans-serif',
+        scoreFont: cs.getPropertyValue('--hud-score-font') || '28px monospace',
+        hpBorder: cs.getPropertyValue('--hp-border-color') || '#274050',
+        sdPlaceholder: cs.getPropertyValue('--sd-placeholder') || '#24313a',
+        barWidthVBase: parseNum('--hp-bar-base-width', 24),
+        sdBase: parseNum('--sd-base-size', 64),
+        sdScale: parseNum('--sd-scale', 2.5),
+      };
+    },
+
+    /** 캔버스와 내부 너비/높이 동기화 */
+    resize(){
+      if (!this.canvas) return;
+      // CSS로 설정한 clientWidth/clientHeight를 사용해 렌더 해상도를 맞춤
+      this.width = this.canvas.clientWidth || window.innerWidth;
+      this.height = this.canvas.clientHeight || window.innerHeight;
+      this.canvas.width = this.width;
+      this.canvas.height = this.height;
+      // ensure lost flag cleared on init
+      this._lost = false;
+    },
+
+    /** 스테이지 모듈을 등록 (registerStage에서 호출됨) */
+    registerStage(id, module){
+      this.registeredStages[id] = module;
+      console.log('Stage registered:', id);
+    },
+
+    /**
+     * 스테이지 스크립트를 동적으로 로드
+     * - 파일 위치 규약: js/game/stage/{stageId}.js
+     * - 스크립트 로드 완료 후, 해당 스크립트가 window.registerStage를 호출하여 등록되었는지 확인
+     */
+    loadStageScript(stageId){
+      const self = this;
+      if (this.registeredStages[stageId]) return Promise.resolve(this.registeredStages[stageId]);
+      return new Promise((resolve, reject) => {
+        const src = `js/game/stage/${stageId}.js`;
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = () => {
+          // 스크립트가 로드되면 해당 스크립트 내에서 registerStage를 호출할 시간을 줌
+          setTimeout(()=>{
+            if (self.registeredStages[stageId]) resolve(self.registeredStages[stageId]);
+            else reject(new Error('Stage script loaded but did not register: '+stageId));
+          }, 50);
+        };
+        script.onerror = (e)=> reject(new Error('Failed to load stage script: '+src));
+        document.body.appendChild(script);
+      });
+    },
+
+    /**
+     * 스테이지 시작 진입점
+     * - 플레이어 인스턴스를 생성하고, 로컬 저장된 커스터마이즈를 적용함
+     * - 스테이지 모듈(init/start)을 호출하고 메인 루프를 시작
+     */
+    startStage(stageId){
+      const self = this;
+      if (!this.canvas) this.init('gameCanvas');
+      // 기존 스테이지/루프 정리
+      this.stopStage();
+      // stop menu BGM when entering a gameplay stage
+      try{ if (window.MenuBGM && typeof window.MenuBGM.stop === 'function') window.MenuBGM.stop(); }catch(e){}
+      // clear lost state so defeat detection works after restart
+      this._lost = false;
+      // 저장된 커스터마이즈를 읽어 플레이어에 적용
+      const custom = readCustom();
+      // Player 클래스는 별도 파일(js/game/player.js)에 정의되어야 함
+      if (!window.Player){ console.warn('Player class not found (js/game/player.js expected).'); }
+      // spawn player centered within the gameplay area (left 75% of canvas)
+      const panelW = Math.floor(this.width * 0.25);
+      const gameAreaW = Math.max(100, this.width - panelW);
+      this.player = window.Player ? new window.Player(this, Math.floor(gameAreaW / 2), this.height - 120) : null;
+      if (this.player && typeof this.player.applyCustomization === 'function'){
+        this.player.applyCustomization(custom);
+      }
+      // If practice mode is enabled, grant the player a very large HP pool
+      try{
+        if (this.practiceMode){
+          if (this.player){
+            this.player.maxHp = 100000;
+            this.player.hp = 100000;
+          }
+        }
+      }catch(e){}
+
+      return this.loadStageScript(stageId).then((stageModule) => {
+        // 스테이지 모듈 초기화
+        this.stageModule = stageModule;
+        if (stageModule && typeof stageModule.init === 'function'){
+          stageModule.init(this);
+        }
+        // 엔티티 초기화
+        this.enemies = [];
+        this.bullets = [];
+    // reset hit counter for the stage
+    this.hits = 0;
+        this.running = true;
+        this.lastTime = performance.now();
+        this.loop(this.lastTime);
+        // If this is stage1, start background music loop (assets/audio/stage1_bgm.mp3)
+        try{
+          // stop any existing bgm first
+          if (this._bgmAudio){ try{ this._bgmAudio.pause(); }catch(e){} }
+          if (String(stageId).toLowerCase().indexOf('stage1') !== -1){
+            const bgPath = 'assets/audio/stage1_bgm.mp3';
+            const a = new Audio(bgPath);
+            a.loop = true;
+            // set volume from settings if available (musicVolume), else keep default
+            try{ const s = (window.Settings && window.Settings.get) ? window.Settings.get() : null; if (s && typeof s.musicVolume === 'number') a.volume = s.musicVolume; }catch(e){}
+            a.play().catch(()=>{});
+            this._bgmAudio = a;
+          }
+        }catch(e){ /* best-effort bgm start */ }
+        if (stageModule && typeof stageModule.start === 'function') stageModule.start();
+        // show the on-screen exit button when a stage is running
+        try{ const exitHudBtn = document.getElementById('game-exit-btn'); if (exitHudBtn) exitHudBtn.style.display = ''; }catch(e){}
+        return stageModule;
+      });
+    },
+
+    /** 스테이지 정지: 루프 중단 및 스테이지 stop 훅 호출 */
+    stopStage(){
+      this.running = false;
+      if (this.rafId) cancelAnimationFrame(this.rafId);
+      if (this.stageModule && typeof this.stageModule.stop === 'function'){
+        try{ this.stageModule.stop(); }catch(e){}
+      }
+      // clear entities to free references and avoid holding memory between stages
+      this.enemies = [];
+      this.bullets = [];
+      this.stageModule = null;
+      // ensure lost flag is cleared when stopping a stage
+      this._lost = false;
+      // stop background music if any
+      try{ if (this._bgmAudio){ try{ this._bgmAudio.pause(); }catch(e){} this._bgmAudio = null; } }catch(e){}
+      // hide on-screen exit button when stage stopped
+      try{ const exitHudBtn = document.getElementById('game-exit-btn'); if (exitHudBtn) exitHudBtn.style.display = 'none'; }catch(e){}
+      // resume menu BGM when returning to menus
+      try{ if (window.MenuBGM && typeof window.MenuBGM.play === 'function') window.MenuBGM.play(); }catch(e){}
+    },
+
+    /** 메인 루프 스케줄러 (requestAnimationFrame 기반) */
+    loop(now){
+      if (!this.running) return;
+      // dt를 초 단위로 계산하되 프레임 드랍 시 급격한 점프 방지
+      const dt = Math.min(40, now - this.lastTime) / 1000; // cap dt in ms
+      this.update(dt);
+      this.render();
+      this.lastTime = now;
+      this.rafId = requestAnimationFrame((t)=> this.loop(t));
+    },
+
+    /**
+     * 업데이트 단계
+     * - 플레이어/적/탄환의 update 호출
+     * - 탄환-적 충돌 판정 (단순 AABB)
+     * - 적(보스) 처치 시 스테이지에 알림
+     */
+    update(dt){
+      // 플레이어 업데이트 (예외 안전하게 호출)
+      try{ if (this.player && this.player.update) this.player.update(dt); }catch(e){ console.error(e); }
+
+      // 탄환 업데이트 및 제거
+      for (let i = this.bullets.length-1; i>=0; i--){
+        const b = this.bullets[i];
+        if (b.update) b.update(dt);
+        if (b.dead) this.bullets.splice(i,1);
+      }
+
+      // Ensure bullets that drift far outside the game area are removed even if their
+      // own update() doesn't mark them dead. This prevents stray bullets from lingering.
+      if (this.bullets.length){
+        const minX = -200; const minY = -200;
+        const maxX = (this.width || 800) + 200;
+        const maxY = (this.height || 600) + 200;
+        for (let i = this.bullets.length - 1; i >= 0; i--){
+          const b = this.bullets[i];
+          if (!b) continue;
+          // only check numeric positions
+          if (typeof b.x === 'number' && typeof b.y === 'number'){
+            if (b.x < minX || b.x > maxX || b.y < minY || b.y > maxY){
+              // mark dead so it will be removed
+              this.bullets.splice(i,1);
+            }
+          }
+        }
+      }
+
+      // Safety trim: if bullets array grows beyond safe cap, drop oldest non-boss bullets
+      if (this.bullets.length > (this._MAX_BULLETS || 1200)){
+        // remove oldest (front) bullets until under cap
+        const excess = this.bullets.length - (this._MAX_BULLETS || 1200);
+        // Prefer removing bullets owned by 'enemy' first
+        let removed = 0;
+        for (let i = 0; i < this.bullets.length && removed < excess; i++){
+          if (this.bullets[i] && this.bullets[i].owner === 'enemy'){
+            this.bullets.splice(i,1);
+            i--;
+            removed++;
+          }
+        }
+        // If still need to trim, remove from the front regardless
+        while (this.bullets.length > (this._MAX_BULLETS || 1200)) this.bullets.shift();
+        console.warn('Bullet pool trimmed to avoid memory pressure, new length=', this.bullets.length);
+      }
+
+      // 적(보스 전용) 업데이트
+      // 주의: 이 게임은 보스 전용이므로 일반 몬스터 생성/삭제 로직은 제거하고
+      // 보스의 상태 변화(예: hp<=0)를 감지하면 스테이지 훅을 호출합니다.
+      for (let i = 0; i < this.enemies.length; i++){
+        const e = this.enemies[i];
+        if (!e) continue;
+        if (e.update) e.update(dt);
+        // 보스가 처치된 경우, 스테이지가 이를 처리하도록 onBossDefeated 훅만 호출
+        if (e.isBoss && (e.hp <= 0 || e.dead)){
+          if (this.stageModule && typeof this.stageModule.onBossDefeated === 'function'){
+            try{ this.stageModule.onBossDefeated(); }catch(err){}
+          }
+        }
+      }
+
+      // 플레이어와 적(보스 포함)의 접촉 충돌 처리 (player.r 사용)
+      // 플레이어가 무적이면 충돌 판정을 건너뜁니다
+      if (this.player && !this.player.invulnerable){
+        const px = (typeof this.player.x === 'number') ? this.player.x : 0;
+        const py = (typeof this.player.y === 'number') ? this.player.y : 0;
+        const pr = (typeof this.player.r === 'number') ? this.player.r : Math.max((this.player.w||0)/2, (this.player.h||0)/2);
+        for (let ei = this.enemies.length - 1; ei >= 0; ei--){
+          const en = this.enemies[ei];
+          if (!en) continue;
+          // enemy bounding box (treat x,y as center)
+          const ew = (typeof en.w === 'number') ? en.w : ((typeof en.r === 'number') ? en.r*2 : 0);
+          const eh = (typeof en.h === 'number') ? en.h : ((typeof en.r === 'number') ? en.r*2 : 0);
+          const ex = (typeof en.x === 'number') ? en.x - (ew/2) : 0;
+          const ey = (typeof en.y === 'number') ? en.y - (eh/2) : 0;
+          // circle-rect closest point
+          const closestX = Math.max(ex, Math.min(px, ex + ew));
+          const closestY = Math.max(ey, Math.min(py, ey + eh));
+          const dx = px - closestX;
+          const dy = py - closestY;
+          if (dx*dx + dy*dy <= (pr * pr)){
+            // collision: apply 1 damage and trigger invulnerability
+            this.player.hp = Math.max(0, (this.player.hp || 0) - 1);
+            this.player.invulnerable = true;
+            this.player.invulTimer = (this.player.invulDur || 2.0);
+            this.player.invulBlinkTimer = 0;
+            // stop after first collision this frame
+            break;
+          }
+        }
+      }
+
+      // 플레이어 소유 탄환과 적 간의 충돌 단순 처리
+      for (let bi = this.bullets.length-1; bi>=0; bi--){
+        const b = this.bullets[bi];
+        if (b.owner === 'player'){
+          for (let ei = this.enemies.length-1; ei>=0; ei--){
+            const en = this.enemies[ei];
+            if (this.rectIntersect(b, en)){
+              en.hp -= b.damage || 1;
+              b.dead = true; // mark bullet for removal
+              break;
+            }
+          }
+        }
+      }
+
+      // 적(혹은 적 소유) 탄막과 플레이어 충돌 처리
+      // Use player's hit pixel radius (player.r) rather than its box size for collision
+      if (this.player){
+        const px = (typeof this.player.x === 'number') ? this.player.x : 0;
+        const py = (typeof this.player.y === 'number') ? this.player.y : 0;
+        const pr = (typeof this.player.r === 'number') ? this.player.r : Math.max((this.player.w||0)/2, (this.player.h||0)/2);
+        for (let bi = this.bullets.length-1; bi>=0; bi--){
+          const b = this.bullets[bi];
+          if (!b || b.owner !== 'enemy') continue;
+          // skip if player is currently invulnerable
+          if (this.player.invulnerable) continue;
+          // compute bullet radius (fallback to 0 if unknown)
+          const bx = (typeof b.x === 'number') ? b.x : 0;
+          const by = (typeof b.y === 'number') ? b.y : 0;
+          const br = (typeof b.r === 'number') ? b.r : (b.w? Math.max(b.w, b.h)/2 : 0);
+          const dx = bx - px;
+          const dy = by - py;
+          const dist2 = dx*dx + dy*dy;
+          const rad = (pr || 0) + (br || 0);
+          if (dist2 <= rad * rad){
+            // apply damage (default 1)
+            const dmg = (typeof b.damage === 'number') ? b.damage : 1;
+            this.player.hp = Math.max(0, (this.player.hp || 0) - dmg);
+            // increment hit counter when player is hit by enemy bullet
+            try{ this.hits = (this.hits || 0) + 1; }catch(e){}
+            // trigger invulnerability and blinking
+            this.player.invulnerable = true;
+            this.player.invulTimer = (this.player.invulDur || 2.0);
+            this.player.invulBlinkTimer = 0;
+            // remove the bullet immediately
+            try{ this.bullets.splice(bi,1); }catch(e){}
+            // stop processing other bullets this frame (player is now invulnerable)
+            break;
+          }
+        }
+      }
+
+      // 스테이지 모듈의 추가 업데이트 훅 호출 (옵션)
+      if (this.stageModule && typeof this.stageModule.onUpdate === 'function'){
+        try{ this.stageModule.onUpdate(dt); }catch(e){}
+      }
+
+      // HUD effects update (advance and remove expired effects)
+      if (this.hudEffects && this.hudEffects.length){
+        for (let i = this.hudEffects.length - 1; i >= 0; i--){
+          const ef = this.hudEffects[i];
+          ef.elapsed = (ef.elapsed || 0) + dt;
+          // lifecycle durations (configured per-effect)
+          const total = (ef.slideIn || 0.5) + (ef.blink || 0.8) + (ef.fade || 0.9);
+          if (ef.elapsed >= total){
+            this.hudEffects.splice(i,1);
+            continue;
+          }
+          // update position based on HUD layout
+          try{
+            const m = this._computeHudLayout();
+            // start closer to the right edge to shorten slide-in distance
+            const startX = (this.width || 800) + 200; // off-canvas right (shorter gap)
+            // land closer to the right HUD panel so slide distance is much shorter
+            // place the right edge of the image a bit inside the HUD panel
+            const endX = (m.panelX || 0) + 400;
+            const slideDur = ef.slideIn || 0.5;
+            const slideT = Math.min(1, ef.elapsed / slideDur);
+            ef.x = startX + (endX - startX) * slideT;
+            // keep the image bottom aligned with the canvas bottom during the animation
+            ef.y = (this.height || 600) - (ef.h || 64);
+            // blink during blink phase
+            if (ef.elapsed > slideDur && ef.elapsed <= (slideDur + (ef.blink || 0.8))){
+              const blinkElapsed = ef.elapsed - slideDur;
+              ef.visible = Math.floor(blinkElapsed / (ef.blinkPeriod || 0.12)) % 2 === 0;
+            } else ef.visible = true;
+            // fade during final phase
+            if (ef.elapsed > (slideDur + (ef.blink || 0.8))){
+              const fadeElapsed = ef.elapsed - (slideDur + (ef.blink || 0.8));
+              ef.alpha = Math.max(0, 1 - Math.min(1, fadeElapsed / (ef.fade || 0.9)));
+            } else ef.alpha = 1;
+          }catch(e){ /* ignore */ }
+        }
+      }
+
+      // Low HP effect trigger: when player's HP falls to <=30% of maxHp, trigger once
+      try{
+        if (this.player && typeof this.player.hp === 'number' && typeof this.player.maxHp === 'number'){
+          const pct = this.player.hp / Math.max(1, this.player.maxHp);
+          if (pct <= 0.30){
+            if (!this._lowHpEffectActive){
+              this._lowHpEffectActive = true;
+              this._startLowHpAttackEffect();
+            }
+          } else {
+            this._lowHpEffectActive = false;
+          }
+        }
+      }catch(e){ }
+
+      // player death handling: if player's hp reaches 0, stop the game and show lose overlay
+      if (this.player && typeof this.player.hp === 'number' && this.player.hp <= 0 && !this._lost){
+        this._lost = true;
+        // stop the main loop so gameplay stops. We keep HUD intact.
+        this.running = false;
+        // dynamically load lose.js (if not already loaded) and call showLose
+        const loadAndShow = () => {
+          if (typeof window.showLose === 'function'){
+            try{
+              // hide on-screen exit button while overlays are visible
+              try{ const exitHudBtn = document.getElementById('game-exit-btn'); if (exitHudBtn) exitHudBtn.style.display = 'none'; }catch(e){}
+              window.showLose({ image: 'assets/character/noel/Noel_lose.png' });
+            }catch(e){}
+          }
+        };
+        if (typeof window.showLose === 'function'){
+            loadAndShow();
+        } else {
+          const s = document.createElement('script');
+          s.src = 'js/game/lose.js';
+          s.onload = function(){ try{ const exitHudBtn = document.getElementById('game-exit-btn'); if (exitHudBtn) exitHudBtn.style.display = 'none'; }catch(e){} loadAndShow(); };
+          s.onerror = function(){ console.warn('Failed to load lose.js'); };
+          document.body.appendChild(s);
+        }
+      }
+    },
+
+    /**
+     * 간단한 충돌 판정 유틸
+     * - a, b는 {x,y,w,h} 또는 {x,y,r} 형태를 예상
+     */
+    rectIntersect(a,b){
+      // Treat entity coordinates as centers (x,y are centers).
+      // If w/h are provided they represent full width/height.
+      // If r is provided it's a radius and full size is r*2.
+      const aw = a.w || (a.r? a.r*2 : 0);
+      const ah = a.h || (a.r? a.r*2 : 0);
+      const bw = b.w || (b.r? b.r*2 : 0);
+      const bh = b.h || (b.r? b.r*2 : 0);
+      const ax1 = a.x - (aw / 2);
+      const ay1 = a.y - (ah / 2);
+      const bx1 = b.x - (bw / 2);
+      const by1 = b.y - (bh / 2);
+      return !(ax1 + aw < bx1 || bx1 + bw < ax1 || ay1 + ah < by1 || by1 + bh < ay1);
+    },
+
+    /** 렌더 단계: 배경, 플레이어, 적, 탄환, 간단 HUD */
+    render(){
+      const ctx = this.ctx;
+      if (!ctx) return;
+  ctx.clearRect(0,0,this.width,this.height);
+
+  // ensure styles are loaded (in case CSS changed dynamically)
+  if (!this.styles) this._loadStyles();
+  const pad = this.styles.pad;
+  // compute panel and game area sizes; panelFraction read from CSS variables
+  const panelW = Math.floor(this.width * (this.styles.panelFraction || 0.25));
+  const gameAreaW = Math.max(100, this.width - panelW);
+
+      // draw gameplay area (clipped to left region)
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, gameAreaW, this.height);
+      ctx.clip();
+
+  // gameplay background
+  ctx.fillStyle = this.styles.gameBg || '#000022';
+  ctx.fillRect(0, 0, gameAreaW, this.height);
+
+      // draw player and entities inside gameplay area
+      try{ if (this.player && this.player.draw) this.player.draw(ctx); }catch(e){ console.error(e); }
+      this.enemies.forEach(e => { if (e.draw) e.draw(ctx); else { ctx.fillStyle='red'; ctx.fillRect(e.x-10,e.y-10,20,20); } });
+      this.bullets.forEach(b => {
+        if (b.draw) b.draw(ctx);
+        else {
+          // default bullet rendering: draw a filled circle using radius r if available
+          ctx.fillStyle = 'yellow';
+          const r = b.r || Math.max(3, Math.floor(((b.w||0) + (b.h||0)) / 4));
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, r, 0, Math.PI*2);
+          ctx.fill();
+        }
+      });
+
+      if (this.stageModule && typeof this.stageModule.draw === 'function'){
+        try{ this.stageModule.draw(ctx); }catch(e){}
+      }
+
+      ctx.restore();
+
+  // Boss HP bar: draw a horizontal, white "neon" bar across the top of the gameplay area
+  const boss = this.enemies.find(e => e && e.isBoss);
+  if (boss && typeof boss.hp === 'number'){
+    const bx = Math.max(8, pad);
+    const by = 8;
+    const bw = Math.max(120, gameAreaW - bx*2);
+    const bh = 14;
+    const bmax = (typeof boss.maxHp === 'number') ? boss.maxHp : Math.max(1, boss.hp);
+    const bpct = Math.max(0, Math.min(1, boss.hp / bmax));
+    ctx.save();
+    // subtle background
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(bx, by, bw, bh);
+    // glowing white fill
+    ctx.shadowColor = 'rgba(255,255,255,0.95)';
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = 'rgba(255,255,255,0.98)';
+    ctx.fillRect(bx, by, Math.floor(bw * bpct), bh);
+    // outline
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, bw, bh);
+    ctx.restore();
+  }
+
+  // draw HUD panel on the right
+  const panelX = gameAreaW;
+  ctx.fillStyle = this.styles.panelBg || '#0b1220';
+  ctx.fillRect(panelX, 0, panelW, this.height);
+
+  const textX = panelX + pad;
+  let y = pad + 20;
+
+  // (score is drawn to the right of the vertical HP bar)
+
+  // Vertical HP bar (left side of HUD panel) — 위에서부터 채워지는 방식
+  const hp = (this.player && typeof this.player.hp === 'number') ? this.player.hp : 0;
+  const maxHp = (this.player && typeof this.player.maxHp === 'number') ? this.player.maxHp : 10;
+  const pct = Math.max(0, Math.min(1, hp / (maxHp || 1)));
+
+  const barWidthVBase = this.styles.barWidthVBase || 24; // base width from CSS
+  // reduce width to 0.7x of the base, but keep a small minimum for visibility
+  const barWidthV = Math.max(8, Math.floor(barWidthVBase * 0.7));
+  const barX = panelX + pad;
+  const barY = pad;
+  const barHeightV = Math.max(80, this.height - pad*2);
+  // background
+  ctx.fillStyle = this.styles.innerBg || '#12202b';
+  ctx.fillRect(barX, barY, barWidthV, barHeightV);
+  // filled portion: anchor at bottom so the bar 'disappears' from the top downward
+  const fillH = Math.floor(barHeightV * pct);
+  ctx.fillStyle = this.styles.accent || '#ef4444';
+  // draw filled area anchored to bottom
+  ctx.fillRect(barX, barY + (barHeightV - fillH), barWidthV, fillH);
+  // border
+  ctx.strokeStyle = this.styles.hpBorder || '#274050';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(barX, barY, barWidthV, barHeightV);
+
+  // Score text moved to the right of the vertical HP bar (바를 스코어에 딱 붙임)
+  // SD 이미지 (HP 바 바로 오른쪽)
+  // SD portrait: base size then scale (configured via CSS var --sd-scale), but cap to available space
+  const baseSd = Math.min(this.styles.sdBase || 64, barHeightV, panelW - (barWidthV + pad*2));
+  let sdSize = Math.floor(baseSd * (this.styles.sdScale || 2.5));
+  // ensure it doesn't overflow the available width or height of the HUD
+  sdSize = Math.min(sdSize, Math.max(8, panelW - (barWidthV + pad*2)), barHeightV);
+  const sdX = barX + barWidthV + 6;
+  // place SD portrait aligned to the bottom of the HUD panel
+  const sdY = barY + barHeightV - sdSize;
+  if (this.player && this.player.sdSprite && this.player.sdSprite.complete && !this.player.sdSprite._broken && this.player.sdSprite.naturalWidth > 0){
+    try{ ctx.drawImage(this.player.sdSprite, sdX, sdY, sdSize, sdSize); }catch(e){}
+  } else {
+    // placeholder box if SD image not loaded
+    ctx.fillStyle = this.styles.sdPlaceholder || '#24313a';
+    ctx.fillRect(sdX, sdY, sdSize, sdSize);
+  }
+
+  // Score (or Hits in practice mode) text placed immediately to the right of the SD portrait
+  const scoreX = sdX + sdSize + 6;
+  let sy = pad + 20;
+  ctx.font = this.styles.labelFont || '16px sans-serif';
+  ctx.fillStyle = this.styles.textColor || '#fff';
+  const label = (this.practiceMode) ? 'HITS' : 'SCORE';
+  const value = (this.practiceMode) ? String(this.hits || 0) : String(this.score || 0);
+  ctx.fillText(label, scoreX, sy);
+  ctx.font = this.styles.scoreFont || '28px monospace';
+  ctx.fillText(value, scoreX, sy + 36);
+
+  // draw any HUD effects (e.g. low-HP attack image) on top of the HUD
+  try{
+    if (this.hudEffects && this.hudEffects.length){
+      this.hudEffects.forEach(ef => {
+        if (!ef || !ef.visible) return;
+        const alpha = (typeof ef.alpha === 'number') ? ef.alpha : 1;
+        try{
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          if (ef.img && ef.img.complete && !ef.img._broken && ef.img.naturalWidth > 0){
+            const w = ef.w || Math.floor(sdSize * 1.5);
+            const h = ef.h || Math.floor(sdSize * 1.5);
+            const x = (typeof ef.x === 'number') ? ef.x : (scoreX + 80);
+            const y = (typeof ef.y === 'number') ? ef.y : (sdY + ((sdSize - h)/2));
+            // draw from right-to-left (ef.x is updated in update())
+            ctx.drawImage(ef.img, x - w, y, w, h);
+          } else {
+            // fallback: draw a pulsing placeholder rectangle
+            const w = ef.w || 72; const h = ef.h || 72;
+            const x = (typeof ef.x === 'number') ? ef.x : (scoreX + 80);
+            const y = (typeof ef.y === 'number') ? ef.y : (sdY + ((sdSize - h)/2));
+            ctx.fillStyle = 'rgba(255,200,0,0.9)';
+            ctx.fillRect(x - w, y, w, h);
+          }
+        }catch(e){}
+        try{ ctx.restore(); }catch(e){}
+      });
+    }
+  }catch(e){}
+    },
+
+    // 엔티티 생성 헬퍼들 (스테이지/플레이어가 호출)
+    spawnPlayerBullet(b){
+      if (this.bullets.length >= (this._MAX_BULLETS || 1200)){
+        // drop player bullets if pool full to avoid memory blowup
+        return null;
+      }
+      this.bullets.push(b); return b;
+    },
+    spawnEnemyBullet(b){
+      if (this.bullets.length >= (this._MAX_BULLETS || 1200)){
+        // skip spawning to prevent runaway growth
+        return null;
+      }
+      this.bullets.push(b); return b;
+    },
+    spawnBoss(entity){
+      // Directly register boss entity. No generic enemy caps in boss-only mode.
+      entity.isBoss = true;
+      this.enemies.push(entity);
+      return entity;
+    },
+
+    /**
+     * 스테이지 종료 처리
+     * - 현재는 단순히 루프를 멈추고 alert를 띄움
+     */
+    endStage(){
+      this.stopStage();
+      // dynamically load win.js and call showWin (fallback to alert if unavailable)
+      const loadAndShow = () => {
+        if (typeof window.showWin === 'function'){
+          try{
+            try{ const exitHudBtn = document.getElementById('game-exit-btn'); if (exitHudBtn) exitHudBtn.style.display = 'none'; }catch(e){}
+            window.showWin();
+          }catch(e){ console.error('showWin failed', e); }
+        } else {
+          try{ alert('Stage complete!'); }catch(e){}
+        }
+      };
+      if (typeof window.showWin === 'function'){
+        loadAndShow();
+      } else {
+        const s = document.createElement('script');
+        s.src = 'js/game/win.js';
+        s.onload = function(){ try{ const exitHudBtn = document.getElementById('game-exit-btn'); if (exitHudBtn) exitHudBtn.style.display = 'none'; }catch(e){} loadAndShow(); };
+        s.onerror = function(){ try{ alert('Stage complete!'); }catch(e){ console.warn('Failed to load win.js'); } };
+        document.body.appendChild(s);
+      }
+      }
+      ,
+      /**
+       * Show an in-game exit confirmation. Pauses the game while visible.
+       * If user confirms, returns to stage select. If user cancels, counts down 3 seconds and resumes.
+       */
+      showExitConfirm(){
+        try{
+          const self = this;
+          if (self._exitOverlayShown) return;
+          self._exitOverlayShown = true;
+          // pause game
+          self._exitPrevRunning = !!self.running;
+          try{ self.running = false; }catch(e){}
+
+          const canvas = this.canvas || document.getElementById('gameCanvas');
+          const rect = canvas ? canvas.getBoundingClientRect() : { width: window.innerWidth, height: window.innerHeight, left:0, top:0 };
+
+          let overlay = document.getElementById('game-exit-overlay');
+          if (!overlay){ overlay = document.createElement('div'); overlay.id = 'game-exit-overlay'; document.body.appendChild(overlay); }
+          overlay.style.position = 'absolute';
+          overlay.style.left = (rect.left || 0) + 'px';
+          overlay.style.top = (rect.top || 0) + 'px';
+          overlay.style.width = (rect.width || window.innerWidth) + 'px';
+          overlay.style.height = (rect.height || window.innerHeight) + 'px';
+          overlay.style.display = 'flex';
+          overlay.style.alignItems = 'center';
+          overlay.style.justifyContent = 'center';
+          overlay.style.zIndex = 10010;
+          overlay.style.background = 'rgba(0,0,0,0.6)';
+
+          let panel = document.getElementById('game-exit-panel');
+          if (!panel){ panel = document.createElement('div'); panel.id = 'game-exit-panel'; overlay.appendChild(panel); }
+          panel.style.minWidth = '320px';
+          panel.style.padding = '18px';
+          panel.style.borderRadius = '12px';
+          panel.style.background = '#1a1f26';
+          panel.style.color = '#fff';
+          panel.style.textAlign = 'center';
+          panel.style.boxShadow = '0 12px 30px rgba(0,0,0,0.6)';
+
+          let msg = document.getElementById('game-exit-msg');
+          if (!msg){ msg = document.createElement('div'); msg.id = 'game-exit-msg'; panel.appendChild(msg); }
+          msg.style.fontSize = '20px';
+          msg.style.marginBottom = '12px';
+          msg.textContent = '나가시겠습니까?';
+
+          let countdown = document.getElementById('game-exit-countdown');
+          if (!countdown){ countdown = document.createElement('div'); countdown.id = 'game-exit-countdown'; panel.appendChild(countdown); }
+          countdown.style.fontSize = '28px';
+          countdown.style.marginBottom = '12px';
+          countdown.style.display = 'none';
+
+          let btnWrap = document.getElementById('game-exit-buttons');
+          if (!btnWrap){ btnWrap = document.createElement('div'); btnWrap.id = 'game-exit-buttons'; panel.appendChild(btnWrap); }
+          btnWrap.style.display = 'flex';
+          btnWrap.style.gap = '12px';
+          btnWrap.style.justifyContent = 'center';
+
+          let yesBtn = document.getElementById('game-exit-yes');
+          if (!yesBtn){ yesBtn = document.createElement('button'); yesBtn.id = 'game-exit-yes'; yesBtn.type='button'; yesBtn.textContent='예'; btnWrap.appendChild(yesBtn); }
+          let noBtn = document.getElementById('game-exit-no');
+          if (!noBtn){ noBtn = document.createElement('button'); noBtn.id = 'game-exit-no'; noBtn.type='button'; noBtn.textContent='아니오'; btnWrap.appendChild(noBtn); }
+          [yesBtn,noBtn].forEach(b => { b.style.padding = '10px 14px'; b.style.borderRadius='8px'; b.style.border='1px solid rgba(255,255,255,0.06)'; b.style.background='#2f2f2f'; b.style.color='#fff'; b.style.cursor='pointer'; });
+
+          try{ if (self._exitCountdownTimer){ clearInterval(self._exitCountdownTimer); self._exitCountdownTimer = null; } }catch(e){}
+
+          const cleanupAndHide = function(){
+            try{ if (self._exitCountdownTimer){ clearInterval(self._exitCountdownTimer); self._exitCountdownTimer = null; } }catch(e){}
+            try{ const o = document.getElementById('game-exit-overlay'); if (o && o.parentNode) o.parentNode.removeChild(o); }catch(e){}
+            self._exitOverlayShown = false;
+          };
+
+          const exitToSelect = function(){
+            try{ cleanupAndHide(); }catch(e){}
+            try{ self.stopStage(); }catch(e){}
+            try{ const selectUI = document.getElementById('gameSelectUI');
+              const startScreen = document.getElementById('startScreen');
+              const canvasEl = document.getElementById('gameCanvas');
+              const selectCanvas = document.getElementById('gameSelectCanvas');
+              if (canvasEl) canvasEl.style.display = 'none';
+              if (selectCanvas) selectCanvas.style.display = '';
+              if (startScreen) { startScreen.style.display = 'none'; startScreen.setAttribute('aria-hidden','true'); }
+              if (selectUI) { selectUI.style.display = ''; selectUI.removeAttribute('aria-hidden'); }
+              try{ if (window.StageSelect && typeof window.StageSelect.localize === 'function') window.StageSelect.localize(); }catch(e){}
+              const btnCustomize = document.getElementById('customizeBtn'); if (btnCustomize) try{ btnCustomize.focus(); }catch(e){}
+            }catch(e){ console.error(e); }
+          };
+
+          yesBtn.onclick = function(){ try{ exitToSelect(); }catch(e){} };
+
+          noBtn.onclick = function(){
+            try{
+              btnWrap.style.display = 'none';
+              countdown.style.display = '';
+              let val = 3; countdown.textContent = String(val);
+              self._exitCountdownValue = val;
+              self._exitCountdownTimer = setInterval(() => {
+                try{
+                  self._exitCountdownValue = (self._exitCountdownValue || 0) - 1;
+                  if (self._exitCountdownValue > 0){ countdown.textContent = String(self._exitCountdownValue); }
+                  else {
+                    try{ clearInterval(self._exitCountdownTimer); self._exitCountdownTimer = null; }catch(e){}
+                    try{ countdown.style.display = 'none'; }catch(e){}
+                    try{ cleanupAndHide(); }catch(e){}
+                    try{ self.lastTime = performance.now(); self.running = true; self.loop(self.lastTime); }catch(e){}
+                  }
+                }catch(err){}
+              }, 1000);
+            }catch(e){}
+          };
+
+          window.hideExitConfirm = function(){ try{ if (self._exitCountdownTimer){ clearInterval(self._exitCountdownTimer); self._exitCountdownTimer = null; } }catch(e){} try{ const o=document.getElementById('game-exit-overlay'); if (o && o.parentNode) o.parentNode.removeChild(o); }catch(e){} self._exitOverlayShown = false; if (self._exitPrevRunning){ try{ self.lastTime = performance.now(); self.running = true; self.loop(self.lastTime); }catch(e){} } };
+        }catch(e){ console.error('showExitConfirm failed', e); }
+      }
+    };
+
+  // 전역에 Game 객체 노출
+  window.Game = window.Game || Game;
+  // expose a global shortcut to show the in-game exit confirmation bound to the runtime
+  try{ if (window.Game && typeof window.Game.showExitConfirm === 'function') window.showExitConfirm = window.Game.showExitConfirm.bind(window.Game); }catch(e){}
+
+})();

@@ -111,6 +111,15 @@
       // 스테이지 모듈이 호출할 수 있도록 전역 registerStage 노출
       // 사용법: stage 스크립트는 window.registerStage('stage1', module) 호출
       window.registerStage = (id, module) => { this.registerStage(id, module); };
+      // If stage scripts ran earlier and stored pending registrations, consume them now
+      try{
+        if (window._pendingStages){
+          Object.keys(window._pendingStages).forEach(k => {
+            try{ this.registerStage(k, window._pendingStages[k]); }catch(e){}
+          });
+          try{ delete window._pendingStages; }catch(e){}
+        }
+      }catch(e){}
       // 전역에 Game 레퍼런스 설정
       window.Game = window.Game || this;
       return this;

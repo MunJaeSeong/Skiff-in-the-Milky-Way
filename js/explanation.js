@@ -1,31 +1,47 @@
-/* Explanation module
-   - Simple modal shell delegated from main.js for the "How to Play" / explanation screen
-   - Starts with blank content and a Close button
-   - Blocks background controls (btnStart, btnHow, btnSettings), traps focus, supports Escape to close
+/*
+  파일: js/explanation.js
+  설명:
+    이 파일은 '게임 설명(How to Play)' 창을 보여주는 모듈
+    사용자가 '게임설명' 버튼을 누르면 이 모달이 뜨고, 여러 페이지를 넘기며
+    게임 조작법이나 캐릭터 정보를 읽을 수 있습니다.
+
+  주요 기능:
+    - 모달(팝업)을 만들어 내용(페이지)을 보여줍니다.
+    - 이전/다음 버튼과 페이지 표시(도트)를 제공해 여러 페이지를 탐색할 수 있어요.
+    - 열려 있는 동안 배경의 주요 버튼들을 비활성화하고, 키보드 포커스가
+      모달 안으로 고정되도록 합니다. ESC로 닫을 수 있습니다.
+
+  사용 예:
+    - `window.Explanation.open()`을 호출하면 모달이 열립니다.
+
+  핵심 아이디어:
+    단순한 설명 문서를 페이지 단위로 보여주고, 키보드와 마우스로 편하게
+    넘기도록 도와주는 '도움말' 역할을 합니다.
 */
+
+// 즉시 실행 함수로 모듈화
+// 'use strict' 모드 사용
 (function(){
   'use strict';
 
-  function readSettings(){
-    try{ return JSON.parse(localStorage.getItem('skiff_settings_v1')||'{}') || {}; }catch(e){ return {}; }
-  }
-
+  // 설명 모달 열기 함수
   function open(){
-    // build modal
+    // 모달 요소 생성
     const modal = document.createElement('div');
-    modal.className = 'modal explanation-modal';
-    modal.setAttribute('role','dialog');
-    modal.setAttribute('aria-modal','true');
+    modal.className = 'modal explanation-modal';  // 설명 모달 클래스 추가
+    modal.setAttribute('role','dialog');  // 역할 속성 설정
+    modal.setAttribute('aria-modal','true');  // 모달 속성 설정
 
-    // determine language and translations (prefer window.Settings when available)
+    // 언어 및 번역 데이터는 `window.Settings`에서 가져옵니다.
+    // (window.Settings가 없으면 기본값 'ko'를 사용)
     let lang = 'ko';
-    try{ if (window.Settings && typeof window.Settings.get === 'function') lang = window.Settings.get().language || lang; else { const s = readSettings(); lang = s.language || lang; } }catch(e){ /* ignore */ }
-    let rootTrans = (window.Settings && window.Settings.translations && window.Settings.translations[lang]) ? window.Settings.translations[lang] : null;
+    try{ if (window.Settings && typeof window.Settings.get === 'function') lang = window.Settings.get().language || lang; }catch(e){ /* ignore */ }
 
+    // 번역 함수
     function t(path, fallback){
-      // path: 'close' or 'explanation.pages.about' etc.
-      if (!rootTrans) return fallback;
       try{
+        const rootTrans = (window.Settings && window.Settings.translations && window.Settings.translations[lang]) ? window.Settings.translations[lang] : null;
+        if (!rootTrans) return fallback;
         const parts = path.split('.');
         let cur = rootTrans;
         for (let p of parts){ if (cur && Object.prototype.hasOwnProperty.call(cur,p)) cur = cur[p]; else return fallback; }
@@ -33,12 +49,12 @@
       }catch(e){ return fallback; }
     }
 
-    const closeLabel = t('close','닫기');
-    const prevAria = t('explanation.prevAria','이전 페이지');
-    const nextAria = t('explanation.nextAria','다음 페이지');
-    const headerTitle = t('how','게임 설명');
+    const closeLabel = t('close','닫기'); // 닫기 버튼 텍스트
+    const prevAria = t('explanation.prevAria','이전 페이지'); // 이전 페이지 aria-label
+    const nextAria = t('explanation.nextAria','다음 페이지'); // 다음 페이지 aria-label
+    const headerTitle = t('how','게임 설명'); // 모달 헤더 제목
 
-    // modal structure with pagination controls (prev/next)
+    // 페이지네이션(이전/다음) 컨트롤이 있는 모달 구조
     modal.innerHTML = `
       <div class="explanation-header" style="display:flex;align-items:center;justify-content:space-between;">
         <h2 id="explanation-title">${headerTitle}</h2>
@@ -57,13 +73,12 @@
       </div>
     `;
 
-    const closeBtn = modal.querySelector('.close');
-
-    // backdrop and background-disabling logic (same ids as settings)
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
-    const disableIds = ['btnStart','btnHow','btnSettings'];
-    const disabledElements = [];
+    const closeBtn = modal.querySelector('.close'); // 닫기 버튼
+    const backdrop = document.createElement('div'); // 백드롭 요소
+    backdrop.className = 'modal-backdrop';  // 백드롭 클래스 설정
+    const disableIds = ['btnStart','btnHow','btnSettings']; // 비활성화할 배경 요소 ID 목록
+    const disabledElements = []; // 비활성화된 요소 추적 배열
+    // 배경 요소 비활성화/복원 함수
     function disableBackgroundElements(){
       disableIds.forEach(id => {
         const el = document.getElementById(id);
@@ -75,6 +90,7 @@
         disabledElements.push(el);
       });
     }
+    // 배경 요소 복원 함수
     function restoreBackgroundElements(){
       disabledElements.forEach(el => {
         try{ el.disabled = (el.dataset._wasDisabled === '1'); }catch(e){}
@@ -85,7 +101,7 @@
       });
       disabledElements.length = 0;
     }
-
+    // 모달 닫기 함수
     function closeModal(){
       try{ modal.remove(); }catch(e){}
       try{ backdrop.remove(); }catch(e){}
@@ -94,11 +110,12 @@
       try{ document.removeEventListener('languagechange', onLanguageChange); }catch(e){}
     }
 
-    // focus trap
+    // 포커스 트랩 (모달 내부로 포커스 고정)
     const FOCUSABLE = 'a[href], area[href], input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
     let focusableInside = [];
+    // 포커스 가능한 요소 갱신 함수
     function refreshFocusable(){ focusableInside = Array.from(modal.querySelectorAll(FOCUSABLE)).filter(el => el.offsetParent !== null); }
-
+    // 키다운 이벤트 핸들러
     function onKeyDown(e){
       if (e.key === 'Escape'){ e.preventDefault(); closeModal(); return; }
       if (e.key === 'Tab'){
@@ -109,7 +126,7 @@
         if (e.shiftKey){ if (document.activeElement === first || !modal.contains(document.activeElement)){ e.preventDefault(); last.focus(); } }
         else { if (document.activeElement === last){ e.preventDefault(); first.focus(); } }
       }
-      // allow left/right arrow keys to navigate pages if pagination exists
+      // 페이지네이션이 있을 경우 왼쪽/오른쪽 화살표로 페이지 이동을 허용
       if (e.key === 'ArrowLeft'){
         try{ if (typeof prevPage === 'function'){ e.preventDefault(); prevPage(); } }catch(err){}
       }
@@ -118,38 +135,37 @@
       }
     }
 
-    // wire close
+    // 닫기 버튼 연결
     closeBtn.addEventListener('click', function(){ closeModal(); });
 
-  // -- Pagination: pages array and navigation functions
-  // Use translations when available (window.Settings.translations)
+  // -- 페이지네이션: 페이지 배열과 네비게이션 함수
+  // 번역은 `window.Settings.translations`와 `window.Settings.get().language`를 사용
   function localTitle(key, fallback){
-      // try explanation pages in translations: explanation.pages.{key}
       try{
-        if (window.Settings && window.Settings.translations){
-          const langCode = (window.Settings.get && window.Settings.get().language) || (readSettings().language) || 'ko';
-          const root = window.Settings.translations[langCode] || window.Settings.translations.ko;
-          if (root && root.explanation && root.explanation.pages && root.explanation.pages[key]) return root.explanation.pages[key];
-          // fallback to characters names if relevant
-          if (key === 'char-rea' && root.characters && root.characters.rea) return (root.characters.rea);
-          if (key === 'char-noa' && root.characters && root.characters.noa) return (root.characters.noa);
-          if (key === 'char-noel' && root.characters && root.characters.noel) return (root.characters.noel);
+        const langCode = (window.Settings && window.Settings.get && window.Settings.get().language) ? window.Settings.get().language : 'ko';
+        const root = (window.Settings && window.Settings.translations) ? (window.Settings.translations[langCode] || window.Settings.translations.ko) : null;
+        if (root && root.explanation && root.explanation.pages && root.explanation.pages[key]) return root.explanation.pages[key];
+        // 캐릭터 이름 폴백
+        if (root){
+          if (key === 'char-rea' && root.characters && root.characters.rea) return root.characters.rea;
+          if (key === 'char-noa' && root.characters && root.characters.noa) return root.characters.noa;
+          if (key === 'char-noel' && root.characters && root.characters.noel) return root.characters.noel;
         }
       }catch(e){ }
       return fallback;
     }
 
+    // 페이지 내용도 번역에서 시도
     function localHtml(key, fallback){
       try{
-        if (window.Settings && window.Settings.translations){
-          const langCode = (window.Settings.get && window.Settings.get().language) || (readSettings().language) || 'ko';
-          const root = window.Settings.translations[langCode] || window.Settings.translations.ko;
-          if (root && root.explanation && root.explanation.content && root.explanation.content[key]) return root.explanation.content[key];
-        }
+        const langCode = (window.Settings && window.Settings.get && window.Settings.get().language) ? window.Settings.get().language : 'ko';
+        const root = (window.Settings && window.Settings.translations) ? (window.Settings.translations[langCode] || window.Settings.translations.ko) : null;
+        if (root && root.explanation && root.explanation.content && root.explanation.content[key]) return root.explanation.content[key];
       }catch(e){ }
       return fallback;
     }
 
+    // 기본값(설명 페이지들)
     const pages = [
       { id: 'about', fallbackTitle: '설명', fallbackHtml: `<ol>
         <li>날아오는 탄막을 피해 몬스터를 처치하세요.</li>
@@ -171,11 +187,12 @@
     ];
 
     let currentIndex = 0;
-    const contentEl = modal.querySelector('.explanation-content');
-    const prevBtn = modal.querySelector('.explain-prev');
-    const nextBtn = modal.querySelector('.explain-next');
-    const pagEl = modal.querySelector('.explain-pagination');
+    const contentEl = modal.querySelector('.explanation-content');  // 내용 표시 요소
+    const prevBtn = modal.querySelector('.explain-prev'); // 이전 버튼
+    const nextBtn = modal.querySelector('.explain-next'); // 다음 버튼
+    const pagEl = modal.querySelector('.explain-pagination'); // 페이지네이션 요소
 
+    // 페이지네이션 렌더링 함수
     function renderPagination(){
       pagEl.innerHTML = '';
       pages.forEach((p, i) => {
@@ -191,6 +208,7 @@
       });
     }
 
+    // 특정 인덱스의 페이지 표시 함수
     function showPage(idx){
       if (idx < 0) idx = pages.length - 1; else if (idx >= pages.length) idx = 0;
       currentIndex = idx;
@@ -203,29 +221,30 @@
       renderPagination();
       refreshFocusable();
     }
-
+    
+    // 이전/다음 페이지 함수
     function prevPage(){ showPage(currentIndex - 1); }
     function nextPage(){ showPage(currentIndex + 1); }
 
     prevBtn.addEventListener('click', function(e){ e.preventDefault(); prevPage(); });
     nextBtn.addEventListener('click', function(e){ e.preventDefault(); nextPage(); });
 
-    // show initial page
+    // 초기 페이지 표시
     showPage(0);
 
-    // append and activate
+    // DOM에 추가하고 활성화
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
     disableBackgroundElements();
     document.addEventListener('keydown', onKeyDown, true);
 
-    // handle dynamic language changes: refresh translation root and UI when languages change
+    // 동적 언어 변경 처리: 언어가 변경되면 번역 루트와 UI를 갱신
     function recalcRootTrans(){
       try{
         if (window.Settings && typeof window.Settings.get === 'function') lang = window.Settings.get().language || lang;
-        rootTrans = (window.Settings && window.Settings.translations && window.Settings.translations[lang]) ? window.Settings.translations[lang] : null;
       }catch(e){ /* ignore */ }
     }
+    // 언어 변경 이벤트 핸들러
     function onLanguageChange(ev){
       try{
         recalcRootTrans();
@@ -243,7 +262,7 @@
     try{ setTimeout(()=>{ refreshFocusable(); if (focusableInside[0]) focusableInside[0].focus(); else closeBtn.focus(); }, 10); }catch(e){}
   }
 
-  // expose API
+  // API 노출
   window.Explanation = window.Explanation || {};
   window.Explanation.open = open;
 

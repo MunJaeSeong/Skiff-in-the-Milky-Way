@@ -32,6 +32,6 @@
     ㄴexplanation.js
     ㄴgameScript.js
     ㄴmain.js
-    ㄴSelect.js
+        ㄴgameSelect.js
     ㄴsetting.js
 ㄴindex.html

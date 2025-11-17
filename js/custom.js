@@ -1,30 +1,48 @@
-/* Customization module
-   - Modal UI for player customization (character/projectile selection etc.)
-   - Provides Save and Close buttons
-   - Blocks background controls while open, traps focus, supports Escape-to-close
-   - Persists a simple placeholder object to localStorage at key 'skiff_custom_v1'
+/*
+  파일: js/custom.js
+  설명:
+    이 파일은 '커스터마이징(사용자 설정)' 창을 만들어 주는 코드예요.
+    플레이어가 캐릭터를 골라 저장할 수 있도록
+    모달(팝업) 형태의 UI를 띄워줍니다.
+
+  주요 기능:
+    - `open()` 함수를 호출하면 커스터마이징 모달이 화면에 나타납니다.
+    - 모달이 열리면 배경(다른 버튼들)을 비활성화하여 실수로 클릭하지 못하게 합니다.
+    - 탭 키로 포커스를 돌릴 수 있게 하고, `Esc` 키로 닫을 수 있습니다.
+    - 저장 버튼을 누르면 선택한 정보를 `localStorage`에 저장합니다.
+
+  저장 위치:
+    - 로컬 저장소 키: `skiff_custom_v1` (브라우저에 저장됩니다)
+
+  핵심 아이디어:
+    이 코드는 화면 왼쪽에 '내 캐릭터(My character)' 미리보기와 오른쪽에 선택 목록을 보여주며,
+    사용자가 고른 항목을 저장/닫기할 수 있게 만드는 역할을 합니다.
 */
 (function(){
   'use strict';
 
   const STORAGE_KEY = 'skiff_custom_v1';
 
+  // 로컬 저장소에서 커스터마이징 데이터 읽기/쓰기 함수
   function readCustom(){
     try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; }catch(e){ return {}; }
   }
+
+  // 저장 함수
   function writeCustom(obj){
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }catch(e){}
   }
 
   function open(){
+    // 저장된 데이터 읽기
     const data = readCustom();
-    // character list - maintainable array so more can be added easily
+    // 캐릭터 및 의상 데이터
     const characters = [
-      // image files are stored under assets/custom/ in the repo
-      { id: 'rea', name: 'Rea', img: 'assets/character/Rea.jpg' },
-      { id: 'noa', name: 'Noa', img: 'assets/character/Noa.jpg' },
-      // placeholder for a third character; replace with a real file when available
-      { id: 'noel', name: 'Noel', img: 'assets/character/Noel.jpg' }
+      // each character now has an `outfits` array so players can choose per-character costumes
+      { id: 'rea', name: 'Rea', img: 'assets/character/Rea/Rea.jpg'},
+      { id: 'noa', name: 'Noa', img: 'assets/character/Noa/Noa.jpg'},
+      // placeholder for a third character; replace or add more outfits as needed
+      { id: 'noel', name: 'Noel', img: 'assets/character/Noel/Noel.jpg'}
     ];
 
     const modal = document.createElement('div');
@@ -34,46 +52,24 @@
     modal.innerHTML = `
       <h2 style="margin:0 0 12px 0">커스터마이징</h2>
       <div class="custom-content" style="flex:1; display:flex; gap:16px; align-items:flex-start; overflow:hidden;">
-        <aside class="my-page" aria-label="내 정보" style="width:300px;flex:0 0 300px;padding:12px;border-right:1px solid rgba(255,255,255,0.03);">
-          <h3 style="margin:0 0 8px 0;color:#fff;font-size:18px">My Page</h3>
+        <aside class="my-page" aria-label="내 캐릭터" style="width:300px;flex:0 0 300px;padding:12px;border-right:1px solid rgba(255,255,255,0.03);">
+          <h3 style="margin:0 0 8px 0;color:#fff;font-size:18px">내 캐릭터</h3>
           <div class="my-preview" style="display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:8px;">
-            <div class="my-ship-thumb" style="width:240px;height:120px;background-size:contain;background-repeat:no-repeat;background-position:center;background-color:#071018;border-radius:6px;"></div>
-            <div class="my-char-thumb" style="width:180px;height:180px;background-size:cover;background-position:center;border-radius:8px;background-color:#111;border:1px solid rgba(255,255,255,0.04);"></div>
+            <div class="my-char-thumb" style="width:220px;height:220px;background-size:cover;background-position:center;border-radius:8px;background-color:#111;border:1px solid rgba(255,255,255,0.04);"></div>
             <div class="my-names" style="text-align:center;">
-              <div class="my-ship-name" style="color:#fff;font-size:18px;margin-top:6px"></div>
               <div class="my-char-name" style="color:#fff;font-size:20px;font-weight:600;margin-top:6px"></div>
-              <div class="my-projectile" style="margin-top:8px;">
-                <div class="my-projectile-thumb" style="width:80px;height:40px;margin:6px auto;background-size:contain;background-repeat:no-repeat;background-position:center;background-color:#071018;border-radius:6px;"></div>
-                <div class="my-projectile-name" style="color:#fff;font-size:14px;margin-top:6px"></div>
-              </div>
+              
             </div>
           </div>
         </aside>
         <div class="custom-right" style="flex:1; display:flex; flex-direction:column; overflow:auto; padding-left:12px;">
-          <div class="selection-tabs" style="display:flex;gap:8px;margin-bottom:8px;">
-            <button class="tab-btn tab-char" type="button" style="padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:#111;color:#fff;cursor:pointer">캐릭터</button>
-            <button class="tab-btn tab-ship" type="button" style="padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#ccc;cursor:pointer">조각배</button>
-            <button class="tab-btn tab-projectile" type="button" style="padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#ccc;cursor:pointer">발사체</button>
-          </div>
+          
           <section class="char-select" aria-label="캐릭터 선택">
             <p class="sr-only">캐릭터 선택</p>
             <div class="character-list" role="listbox" aria-label="캐릭터 목록" style="display:flex;gap:12px;flex-wrap:nowrap;overflow-x:auto;scroll-snap-type:x mandatory;padding:12px; -webkit-overflow-scrolling:touch;">
             </div>
           </section>
           <hr style="opacity:.06;margin:12px 0">
-          <!-- ship (조각배) selector: start with one ship and leave commented examples for adding more -->
-          <section class="ship-select" aria-label="조각배 선택" style="margin-top:8px">
-            <p class="sr-only">조각배 선택</p>
-            <div class="ship-list" role="listbox" aria-label="조각배 목록" style="display:flex;gap:12px;flex-wrap:nowrap;overflow-x:auto;padding:8px;">
-            </div>
-          </section>
-          <hr style="opacity:.06;margin:12px 0">
-          <!-- projectile selector -->
-          <section class="projectile-select" aria-label="발사체 선택" style="margin-top:8px">
-            <p class="sr-only">발사체 선택</p>
-            <div class="projectile-list" role="listbox" aria-label="발사체 목록" style="display:flex;gap:12px;flex-wrap:nowrap;overflow-x:auto;padding:8px;">
-            </div>
-          </section>
         </div>
       </div>
       <div style="margin-top:18px;display:flex;gap:10px;justify-content:flex-end;">
@@ -82,25 +78,18 @@
       </div>
     `;
 
-  const saveBtn = modal.querySelector('.custom-save');
-  const closeBtn = modal.querySelector('.close');
-  const charListEl = modal.querySelector('.character-list');
-  const myShipThumbEl = modal.querySelector('.my-ship-thumb');
-  const myCharThumbEl = modal.querySelector('.my-char-thumb');
-  const myShipNameEl = modal.querySelector('.my-ship-name');
-  const myCharNameEl = modal.querySelector('.my-char-name');
-  const customRightEl = modal.querySelector('.custom-right');
-  const tabCharBtn = modal.querySelector('.tab-char');
-  const tabShipBtn = modal.querySelector('.tab-ship');
-  const tabProjectileBtn = modal.querySelector('.tab-projectile');
-  const charSection = modal.querySelector('.char-select');
-  const shipSection = modal.querySelector('.ship-select');
-  const projectileSection = modal.querySelector('.projectile-select');
+  const saveBtn = modal.querySelector('.custom-save');  // 저장 버튼
+  const closeBtn = modal.querySelector('.close'); // 닫기 버튼
+  const charListEl = modal.querySelector('.character-list'); // 캐릭터 목록 컨테이너
+  const myCharThumbEl = modal.querySelector('.my-char-thumb'); // 내 캐릭터 썸네일
+  const myCharNameEl = modal.querySelector('.my-char-name'); // 내 캐릭터 이름
+  const customRightEl = modal.querySelector('.custom-right');// 오른쪽 패널 전체
+  const charSection = modal.querySelector('.char-select');  // 캐릭터 선택 섹션
 
-    // backdrop and disable similar to other modals
+    // 백드롭과 배경 비활성화: 다른 모달과 동일한 동작을 수행함
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
-    // Make sure backdrop fully covers the screen and sits below the modal
+    // 백드롭이 화면 전체를 덮고 모달 아래에 배치되도록 스타일 설정
     try{
       backdrop.style.position = 'fixed';
       backdrop.style.left = '0';
@@ -112,6 +101,7 @@
     }catch(e){}
     const disableIds = ['btnStart','btnHow','btnSettings','customizeBtn','practiceMode','stageList'];
     const disabledElements = [];
+    // 배경 요소 비활성화 함수
     function disableBackgroundElements(){
       disableIds.forEach(id => {
         const el = document.getElementById(id);
@@ -123,6 +113,7 @@
         disabledElements.push(el);
       });
     }
+    // 배경 요소 복원 함수
     function restoreBackgroundElements(){
       disabledElements.forEach(el => {
         try{ el.disabled = (el.dataset._wasDisabled === '1'); }catch(e){}
@@ -133,7 +124,7 @@
       });
       disabledElements.length = 0;
     }
-
+    // 모달 닫기 함수
     function closeModal(){
       try{ modal.remove(); }catch(e){}
       try{ backdrop.remove(); }catch(e){}
@@ -141,9 +132,9 @@
       document.removeEventListener('keydown', onKeyDown, true);
     }
 
-    // style modal so it doesn't let page content show through and stays on-screen
+    // 모달 스타일: 페이지 콘텐츠가 보이지 않고 화면에 고정되도록 함
     try{
-      // modal becomes a fixed column container so we can keep the header and my-page fixed
+      // 모달을 고정된 열 컨테이너로 만들어 헤더와 왼쪽 미리보기가 고정되도록 함
       modal.style.position = 'fixed';
       modal.style.left = '50%';
       modal.style.top = '6vh';
@@ -155,16 +146,16 @@
       modal.style.padding = '18px';
       modal.style.borderRadius = '10px';
       modal.style.boxShadow = '0 20px 60px rgba(0,0,0,0.6)';
-      // make modal a column flex so inner areas can be independently scrollable
+      // 내부 영역들이 독립적으로 스크롤되도록 모달을 컬럼 플렉스로 설정
       modal.style.display = 'flex';
       modal.style.flexDirection = 'column';
-      // prevent the whole page from scrolling when modal is open; inner panes will scroll
+      // 모달이 열려 있을 때 전체 페이지 스크롤을 막고 내부 패널만 스크롤되게 함
       modal.style.overflow = 'hidden';
       modal.style.zIndex = '10001';
     }catch(e){}
 
-    // Ensure the right pane can scroll vertically inside the fixed modal.
-    // Important: in a flex layout, children must allow shrinking (min-height:0)
+    // 오른쪽 패널이 고정된 모달 내부에서 세로 스크롤 되도록 설정
+    // 중요한 점: flex 레이아웃에서는 자식 요소들이 축소 가능하도록 해야 함 (min-height:0)
     try{
       if (customRightEl){
         customRightEl.style.minHeight = '0';
@@ -172,14 +163,12 @@
         customRightEl.style.webkitOverflowScrolling = 'touch';
       }
       if (charListEl){
-        // character-list should not force the parent to grow vertically
+        // character-list가 부모 요소의 세로 크기를 강제로 늘리지 않도록 함
         charListEl.style.flex = '0 0 auto';
-      }
-      if (shipListEl){ shipListEl.style.flex = '0 0 auto'; }
-      if (projectileListEl){ projectileListEl.style.flex = '0 0 auto'; }
+        }
     }catch(e){}
 
-    // focus trap
+    // 포커스 트랩 (모달이 열렸을 때 포커스를 모달 내부에 고정)
     const FOCUSABLE = 'a[href], area[href], input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
     let focusableInside = [];
     function refreshFocusable(){ focusableInside = Array.from(modal.querySelectorAll(FOCUSABLE)).filter(el => el.offsetParent !== null); }
@@ -196,8 +185,8 @@
       }
     }
 
-  // render character items dynamically from the characters array
-  // default character 'rea' per user request, fallback to first array entry
+    // characters 배열에서 동적으로 캐릭터 항목을 렌더링
+  // 기본 선택 캐릭터는 'rea' (요청에 따라). 없으면 배열 첫 항목 사용
   let selectedCharacter = (data && data.character) ? data.character : 'rea';
     function createCharacterItem(ch){
       const item = document.createElement('button');
@@ -205,7 +194,7 @@
       item.className = 'character-item';
       item.setAttribute('role','option');
       item.setAttribute('aria-selected','false');
-  // make the character item large so thumbnails are more visible
+  // 썸네일이 잘 보이도록 캐릭터 항목을 크게 설정
   item.style.minWidth = '320px';
   item.style.scrollSnapAlign = 'center';
       item.style.border = '1px solid rgba(255,255,255,0.06)';
@@ -221,32 +210,17 @@
 
       const thumb = document.createElement('div');
       thumb.className = 'char-thumb';
-  // increase thumbnail size ~4x as requested
+  // 요청에 따라 썸네일 크기를 약 4배로 증가
   thumb.style.width = '320px';
   thumb.style.height = '320px';
       thumb.style.borderRadius = '6px';
       thumb.style.backgroundSize = 'cover';
       thumb.style.backgroundPosition = 'center';
       thumb.style.backgroundColor = '#111';
-      // set image if available
+      // 이미지가 있으면 배경 이미지로 설정
       if (ch.img) thumb.style.backgroundImage = `url('${ch.img}')`;
 
-  const label = document.createElement('div');
-  // localize character name if a translation exists
-  try{
-    const lang = (window.Settings && typeof window.Settings.get === 'function') ? window.Settings.get().language : 'ko';
-    const tr = (window.Settings && window.Settings.translations) ? window.Settings.translations : {};
-    const cname = (tr[lang] && tr[lang].characters && tr[lang].characters[ch.id]) || ch.name || ch.id;
-    label.textContent = cname;
-  }catch(e){ label.textContent = ch.name || ch.id; }
-  // make the character name clearly visible: white and larger (approx. 2x)
-  label.style.fontSize = '32px';
-  label.style.color = '#ffffff';
-  label.style.fontWeight = '600';
-  label.style.opacity = '1';
-
       item.appendChild(thumb);
-      item.appendChild(label);
 
       function updateSelectedVisual(active){
         if (active){
@@ -266,7 +240,7 @@
         Array.from(charListEl.children).forEach(c => c._updateSelected(false));
         updateSelectedVisual(true);
         item._updateSelected = updateSelectedVisual;
-        // center and update the My Page preview
+        // center and update the My Character preview
         centerCharacter(item);
         try{ updateMyPage(); }catch(e){}
       });
@@ -286,31 +260,28 @@
         }
       });
 
-      // helper so we can call to set initial state
+      // 초기 상태를 설정할 수 있도록 도와주는 헬퍼
       item._updateSelected = updateSelectedVisual;
 
       return item;
     }
 
-    // populate list
+    // 캐릭터 목록을 DOM에 추가
     characters.forEach(ch => {
       const el = createCharacterItem(ch);
       charListEl.appendChild(el);
     });
 
-    // localize static labels (heading, tabs, save/close) if translations are available
+    // 정적 레이블(헤더, 탭, 저장/닫기)을 번역 데이터로 지역화(있을 경우)
     try{
       const lang = (window.Settings && typeof window.Settings.get === 'function') ? window.Settings.get().language : 'ko';
       const tr = (window.Settings && window.Settings.translations) ? window.Settings.translations : {};
       const t = tr[lang] || {};
       const h2 = modal.querySelector('h2');
       if (h2) h2.textContent = (t.custom && t.custom.title) || (t.settingsTitle) || h2.textContent;
-      if (tabCharBtn) tabCharBtn.textContent = (t.custom && t.custom.tabChar) || tabCharBtn.textContent;
-      if (tabShipBtn) tabShipBtn.textContent = (t.custom && t.custom.tabShip) || tabShipBtn.textContent;
-      if (tabProjectileBtn) tabProjectileBtn.textContent = (t.custom && t.custom.tabProjectile) || tabProjectileBtn.textContent;
       if (saveBtn) saveBtn.textContent = (t.save) || saveBtn.textContent;
       if (closeBtn) closeBtn.textContent = (t.close) || closeBtn.textContent;
-      // My Page heading + aside aria-label
+      // 왼쪽 섹션(내 캐릭터) 헤더 및 aside의 aria-label 처리
       const myPageH3 = modal.querySelector('aside.my-page h3');
       const myPageAside = modal.querySelector('aside.my-page');
       const myPageText = (t.custom && t.custom.myPage) || 'My Page';
@@ -318,172 +289,7 @@
       if (myPageAside) myPageAside.setAttribute('aria-label', myPageText);
     }catch(e){}
 
-    // --- ship list ---
-    // start with one ship; add more by adding objects to the `ships` array below
-    const ships = [
-      { id: 'woodskiff', name: 'Wood Skiff', img: 'assets/skiffs/woodskiff.png' }
-      // example additional ship:
-      // { id: 'metalsskiff', name: 'Metal Skiff', img: 'assets/skiffs/metalsskiff.png' }
-    ];
-    const shipListEl = modal.querySelector('.ship-list');
-    const projectileListEl = modal.querySelector('.projectile-list');
-    const myProjectileThumbEl = modal.querySelector('.my-projectile-thumb');
-    const myProjectileNameEl = modal.querySelector('.my-projectile-name');
-  // default ship 'woodskiff' per user request
-  let selectedShip = (data && data.ship) ? data.ship : 'woodskiff';
-  // projectiles: keep maintainable array; add entries matching files under assets/projectile/
-  const projectiles = [
-    // Example entries - replace or add to match files in assets/projectile/
-    { id: 'basic', name: 'Basic Shot', img: 'assets/projectile/투사체1.jpg' },
-    { id: 'fast', name: 'Fast Bolt', img: 'assets/projectile/투사체2.jpg' },
-    { id: 'heavy', name: 'Heavy Shell', img: 'assets/projectile/투사체3.jpg' },
-    { id: 'energy', name: 'Energy Pulse', img: 'assets/projectile/투사체4.jpg' },
-    { id: 'plasma', name: 'Plasma Beam', img: 'assets/projectile/투사체5.jpg' },
-    { id: 'quantum', name: 'Quantum Ray', img: 'assets/projectile/투사체6.jpg' }
-  ];
-  let selectedProjectile = (data && data.projectile) ? data.projectile : (projectiles[0] && projectiles[0].id) || '';
-    function createShipItem(s){
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'ship-item';
-      btn.setAttribute('role','option');
-      btn.setAttribute('aria-selected','false');
-      btn.style.minWidth = '220px';
-      btn.style.padding = '8px';
-      btn.style.borderRadius = '8px';
-      btn.style.border = '1px solid rgba(255,255,255,0.06)';
-      btn.style.background = 'transparent';
-      btn.style.display = 'flex';
-      btn.style.flexDirection = 'column';
-      btn.style.alignItems = 'center';
-      btn.style.gap = '8px';
-      btn.tabIndex = 0;
-
-      const thumb = document.createElement('div');
-      thumb.style.width = '200px';
-      thumb.style.height = '120px';
-      thumb.style.backgroundSize = 'contain';
-      thumb.style.backgroundRepeat = 'no-repeat';
-      thumb.style.backgroundPosition = 'center';
-      thumb.style.backgroundColor = '#071018';
-      if (s.img) thumb.style.backgroundImage = `url('${s.img}')`;
-
-      const lbl = document.createElement('div');
-      // localize ship name if available
-      try{
-        const lang = (window.Settings && typeof window.Settings.get === 'function') ? window.Settings.get().language : 'ko';
-        const tr = (window.Settings && window.Settings.translations) ? window.Settings.translations : {};
-        lbl.textContent = (tr[lang] && tr[lang].ships && tr[lang].ships[s.id]) || s.name || s.id;
-      }catch(e){ lbl.textContent = s.name || s.id; }
-      lbl.style.color = '#fff';
-      lbl.style.fontSize = '18px';
-
-      btn.appendChild(thumb);
-      btn.appendChild(lbl);
-
-      btn.addEventListener('click', function(){
-        selectedShip = s.id;
-        Array.from(shipListEl.children).forEach(c => c._updateSelected && c._updateSelected(false));
-        updateShipSelectedVisual(btn, true);
-        try{ updateMyPage(); }catch(e){}
-      });
-      btn.addEventListener('keydown', function(ev){ if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); btn.click(); } });
-      btn._updateSelected = function(active){ updateShipSelectedVisual(btn, active); };
-      return btn;
-    }
-    function updateShipSelectedVisual(btn, active){
-      if (active){ btn.style.border = '2px solid #6cf'; btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.6)'; btn.setAttribute('aria-selected','true'); }
-      else { btn.style.border = '1px solid rgba(255,255,255,0.06)'; btn.style.boxShadow = 'none'; btn.setAttribute('aria-selected','false'); }
-    }
-    ships.forEach(s => { const el = createShipItem(s); shipListEl.appendChild(el); });
-    // set initial ship selection visual
-    Array.from(shipListEl.children).forEach((b,i) => { b._updateSelected(ships[i].id === selectedShip); });
-  // make sure ship list doesn't force the parent to expand vertically
-  try{ if (shipListEl) { shipListEl.style.flex = '0 0 auto'; shipListEl.style.marginBottom = '12px'; } }catch(e){}
-  // render projectiles if any
-  try{
-    if (projectileListEl){
-      function createProjectileItem(p){
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'projectile-item';
-        btn.setAttribute('role','option');
-        btn.setAttribute('aria-selected','false');
-        btn.style.minWidth = '120px';
-        btn.style.padding = '8px';
-        btn.style.borderRadius = '8px';
-        btn.style.border = '1px solid rgba(255,255,255,0.06)';
-        btn.style.background = 'transparent';
-        btn.style.display = 'flex';
-        btn.style.flexDirection = 'column';
-        btn.style.alignItems = 'center';
-        btn.style.gap = '8px';
-        btn.tabIndex = 0;
-
-        const thumb = document.createElement('div');
-        thumb.style.width = '80px';
-        thumb.style.height = '40px';
-        thumb.style.backgroundSize = 'contain';
-        thumb.style.backgroundRepeat = 'no-repeat';
-        thumb.style.backgroundPosition = 'center';
-        thumb.style.backgroundColor = '#071018';
-        if (p.img) thumb.style.backgroundImage = `url('${p.img}')`;
-
-        const lbl = document.createElement('div');
-        // localize projectile name if available
-        try{
-          const lang = (window.Settings && typeof window.Settings.get === 'function') ? window.Settings.get().language : 'ko';
-          const tr = (window.Settings && window.Settings.translations) ? window.Settings.translations : {};
-          lbl.textContent = (tr[lang] && tr[lang].projectiles && tr[lang].projectiles[p.id]) || p.name || p.id;
-        }catch(e){ lbl.textContent = p.name || p.id; }
-        lbl.style.color = '#fff';
-        lbl.style.fontSize = '14px';
-
-        btn.appendChild(thumb);
-        btn.appendChild(lbl);
-
-        btn.addEventListener('click', function(){
-          selectedProjectile = p.id;
-          Array.from(projectileListEl.children).forEach(c => c._updateSelected && c._updateSelected(false));
-          updateProjectileSelectedVisual(btn, true);
-          try{ updateMyPage(); }catch(e){}
-        });
-        btn.addEventListener('keydown', function(ev){ if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); btn.click(); } });
-        btn._updateSelected = function(active){ updateProjectileSelectedVisual(btn, active); };
-        return btn;
-      }
-      function updateProjectileSelectedVisual(btn, active){ if (active){ btn.style.border = '2px solid #6cf'; btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.6)'; btn.setAttribute('aria-selected','true'); } else { btn.style.border = '1px solid rgba(255,255,255,0.06)'; btn.style.boxShadow = 'none'; btn.setAttribute('aria-selected','false'); } }
-      projectiles.forEach(p => { const el = createProjectileItem(p); projectileListEl.appendChild(el); });
-      Array.from(projectileListEl.children).forEach((b,i) => { b._updateSelected(projectiles[i].id === selectedProjectile); });
-      if (projectileListEl) { projectileListEl.style.flex = '0 0 auto'; }
-    }
-  }catch(e){}
-
-  // Tab switching logic: show the selected section and update tab styles
-  try{
-    function setActiveTab(which){
-      const activeBg = '#111';
-      const inactiveColor = '#ccc';
-      const activeColor = '#fff';
-      // show/hide sections
-      if (charSection) charSection.style.display = (which === 'char') ? '' : 'none';
-      if (shipSection) shipSection.style.display = (which === 'ship') ? '' : 'none';
-      if (projectileSection) projectileSection.style.display = (which === 'projectile') ? '' : 'none';
-      // update buttons
-      if (tabCharBtn) { tabCharBtn.style.background = (which === 'char') ? activeBg : 'transparent'; tabCharBtn.style.color = (which === 'char') ? activeColor : inactiveColor; }
-      if (tabShipBtn) { tabShipBtn.style.background = (which === 'ship') ? activeBg : 'transparent'; tabShipBtn.style.color = (which === 'ship') ? activeColor : inactiveColor; }
-      if (tabProjectileBtn) { tabProjectileBtn.style.background = (which === 'projectile') ? activeBg : 'transparent'; tabProjectileBtn.style.color = (which === 'projectile') ? activeColor : inactiveColor; }
-    }
-    if (tabCharBtn) tabCharBtn.addEventListener('click', function(){ setActiveTab('char'); });
-    if (tabShipBtn) tabShipBtn.addEventListener('click', function(){ setActiveTab('ship'); });
-    if (tabProjectileBtn) tabProjectileBtn.addEventListener('click', function(){ setActiveTab('projectile'); });
-    // accessible keyboard activation
-    [tabCharBtn, tabShipBtn, tabProjectileBtn].forEach(b => { if (!b) return; b.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); b.click(); } }); });
-    // default to character tab
-    setActiveTab('char');
-  }catch(e){}
-
-    // set initial selection visual and center selected
+    // 초기 선택 비주얼 설정 및 선택 항목 중앙 정렬; 현재 캐릭터에 대한 의상 목록 채우기
     Array.from(charListEl.children).forEach((btn, i) => {
       const id = characters[i].id;
       const active = (id === selectedCharacter);
@@ -494,44 +300,27 @@
       }
     });
 
-    // update the left-side My Page preview (use localized names when available)
+    // 왼쪽 '내 캐릭터' 미리보기 업데이트 (가능하면 지역화된 이름 사용)
     function updateMyPage(){
-      // find character and ship objects
       const ch = characters.find(c => c.id === selectedCharacter) || characters[0];
-      const sh = ships.find(s => s.id === selectedShip) || ships[0];
-      const pj = projectiles.find(p => p.id === selectedProjectile) || projectiles[0];
-      // update thumbnails and names
+      // update character main thumb
       if (myCharThumbEl){
         if (ch && ch.img) myCharThumbEl.style.backgroundImage = `url('${ch.img}')`;
         else myCharThumbEl.style.backgroundImage = '';
-      }
-      if (myShipThumbEl){
-        if (sh && sh.img) myShipThumbEl.style.backgroundImage = `url('${sh.img}')`;
-        else myShipThumbEl.style.backgroundImage = '';
-      }
-      if (myProjectileThumbEl){
-        if (pj && pj.img) myProjectileThumbEl.style.backgroundImage = `url('${pj.img}')`;
-        else myProjectileThumbEl.style.backgroundImage = '';
       }
       try{
         const lang = (window.Settings && typeof window.Settings.get === 'function') ? window.Settings.get().language : 'ko';
         const tr = (window.Settings && window.Settings.translations) ? window.Settings.translations : {};
         const t = tr[lang] || {};
         const cname = (t.characters && t.characters[ch.id]) || ch.name || ch.id;
-        const sname = (t.ships && t.ships[sh.id]) || sh.name || sh.id;
-        const pname = (t.projectiles && t.projectiles[pj.id]) || pj.name || pj.id;
         if (myCharNameEl) myCharNameEl.textContent = cname;
-        if (myShipNameEl) myShipNameEl.textContent = sname;
-        if (myProjectileNameEl) myProjectileNameEl.textContent = pname;
       }catch(e){
         if (myCharNameEl) myCharNameEl.textContent = ch ? (ch.name || ch.id) : '';
-        if (myShipNameEl) myShipNameEl.textContent = sh ? (sh.name || sh.id) : '';
-        if (myProjectileNameEl) myProjectileNameEl.textContent = pj ? (pj.name || pj.id) : '';
       }
     }
     try{ updateMyPage(); }catch(e){}
 
-    // ensure scrolling centers the selected element
+    // 선택한 항목이 스크롤 컨테이너에서 중앙에 오도록 스크롤 위치 조정
     function centerCharacter(el){
       const wrapper = charListEl;
       if (!wrapper || !el) return;
@@ -540,8 +329,8 @@
     }
 
     saveBtn.addEventListener('click', function(){
-      // persist selected character and ship into custom data
-      const obj = Object.assign({}, data, { character: selectedCharacter, ship: selectedShip, projectile: selectedProjectile, updated: Date.now() });
+      // 선택된 캐릭터만 저장
+      const obj = Object.assign({}, data, { character: selectedCharacter, updated: Date.now() });
       writeCustom(obj);
       try{ closeModal(); }catch(e){}
     });
@@ -550,10 +339,10 @@
       try{ closeModal(); }catch(e){}
     });
 
-    // append and activate
+    // 모달과 백드롭을 DOM에 추가하고 활성화
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
-    // live language updates while modal is open
+    // 모달이 열려 있는 동안 언어 설정이 바뀌면 실시간으로 텍스트 갱신
     function onLanguageChange(ev){
       try{
         const lang = (window.Settings && typeof window.Settings.get === 'function') ? window.Settings.get().language : 'ko';
@@ -561,9 +350,6 @@
         const t = tr[lang] || {};
         const h2 = modal.querySelector('h2');
         if (h2) h2.textContent = (t.custom && t.custom.title) || (t.settingsTitle) || h2.textContent;
-        if (tabCharBtn) tabCharBtn.textContent = (t.custom && t.custom.tabChar) || tabCharBtn.textContent;
-        if (tabShipBtn) tabShipBtn.textContent = (t.custom && t.custom.tabShip) || tabShipBtn.textContent;
-        if (tabProjectileBtn) tabProjectileBtn.textContent = (t.custom && t.custom.tabProjectile) || tabProjectileBtn.textContent;
         if (saveBtn) saveBtn.textContent = (t.save) || saveBtn.textContent;
         if (closeBtn) closeBtn.textContent = (t.close) || closeBtn.textContent;
         const myPageText = (t.custom && t.custom.myPage) || 'My Page';
@@ -571,7 +357,7 @@
         const myPageAside = modal.querySelector('aside.my-page');
         if (myPageH3) myPageH3.textContent = myPageText;
         if (myPageAside) myPageAside.setAttribute('aria-label', myPageText);
-        // refresh localized preview names
+        // 미리보기 이름(지역화된 텍스트) 갱신
         try{ updateMyPage(); }catch(e){}
       }catch(e){}
     }
@@ -579,7 +365,7 @@
     disableBackgroundElements();
     document.addEventListener('keydown', onKeyDown, true);
     try{ setTimeout(()=>{ refreshFocusable(); if (focusableInside[0]) focusableInside[0].focus(); else saveBtn.focus(); }, 10); }catch(e){}
-    // remove language listener when modal closed
+    // 모달이 닫힐 때 언어 변경 이벤트 리스너 제거
     const _oldClose = closeModal;
     closeModal = function(){
       try{ document.removeEventListener('languagechange', onLanguageChange); }catch(e){}

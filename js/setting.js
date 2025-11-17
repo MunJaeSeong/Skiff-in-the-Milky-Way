@@ -1,11 +1,28 @@
-/* Settings module
-   - Provides a modal UI for Sound (on/off + volume) and Language (ko/en/ja)
-   - Persists settings to localStorage and applies language changes live
-   - Exposes window.Settings.open() to show the settings dialog
+/*
+  파일: js/setting.js
+  설명:
+    이 파일은 게임의 설정 창을 보여주고, 사용자가 사운드나 언어를 바꿀 수 있게 해 줍니다.
+    설정은 브라우저의 `localStorage`에 저장되어 다음에 다시 방문해도 유지됩니다.
+
+  주요 기능:
+    - 소리(켜기/끄기)와 볼륨(음악, 음성)을 조절합니다.
+    - 언어(한국어, 영어, 일본어)를 선택하면 화면의 텍스트가 바뀝니다.
+    - `window.Settings.open()`으로 설정 모달을 띄울 수 있습니다.
+    - 변경 사항은 즉시 적용되며, `settingschange` 이벤트나 `languagechange` 이벤트를 통해
+      다른 모듈이 반응할 수 있습니다.
+
+  저장 위치 및 기본값:
+    - 저장 키: `skiff_settings_v1`
+    - 기본 언어: 한국어(ko), 기본 볼륨은 0.8 등
+
+  핵심 아이디어:
+    이 코드는 '설정 화면'을 만들고 사용자가 바꾼 값을 저장/적용해 다른 코드들이
+    그 변경을 읽어 사용할 수 있게 해 주는 역할을 합니다.
 */
 (function(){
   'use strict';
 
+  // 설정 저장 키 및 기본값
   const STORAGE_KEY = 'skiff_settings_v1';
   const defaults = {
     soundEnabled: true,
@@ -15,6 +32,7 @@
     language: 'ko'
   };
 
+  // 번역 데이터 (유지 보수를 위해 모든 번역 키는 이 객체에 통합)
   const translations = {
     ko: {
       start: '게임시작',
@@ -72,12 +90,30 @@
       titleButton: 'Title',
       practiceLabel: 'Practice',
       stages: {
-        stage1: 'Galaxy Canyon', stage2: 'Island of the Sea', stage3: 'Supernova Burst', stage4: 'Coming Soon'
+        stage1: 'Galaxy Canyon', 
+        stage2: 'Island of the Sea', 
+        stage3: 'Supernova Burst', 
+        stage4: 'Coming Soon'
       },
-      custom: { title: 'Customization', tabChar: 'Character', tabShip: 'Skiff', tabProjectile: 'Projectile', customizeBtn: 'Customize', myPage: 'My Page' },
-      characters: { rea: 'Rea', noa: 'Noa', noel: 'Noel' },
+      custom: { title: 'Customization', 
+                tabChar: 'Character', 
+                tabShip: 'Skiff', 
+                tabProjectile: 'Projectile', 
+                customizeBtn: 'Customize', 
+                myPage: 'My Page' 
+              },
+      characters: { rea: 'Rea', 
+                    noa: 'Noa', 
+                    noel: 'Noel' 
+                  },
       ships: { woodskiff: 'Wood Skiff' },
-      projectiles: { basic: 'Basic Shot', fast: 'Fast Bolt', heavy: 'Heavy Shell', energy: 'Energy Pulse', plasma: 'Plasma Beam', quantum: 'Quantum Ray' }
+      projectiles: { basic: 'Basic Shot', 
+                     fast: 'Fast Bolt', 
+                     heavy: 'Heavy Shell', 
+                     energy: 'Energy Pulse', 
+                     plasma: 'Plasma Beam', 
+                     quantum: 'Quantum Ray' 
+                   }
       ,
       explanation: {
         prevAria: 'Previous page',
@@ -143,14 +179,15 @@
     }
   };
 
-  // (All translation keys are consolidated above in the `translations` object.)
-
+  // 설정 읽기/쓰기 및 적용 함수
   function readSettings(){
     try{
+      // 이전에 저장된 설정을 불러오고, 없으면 기본값을 반환
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return Object.assign({}, defaults);
+      // 저장된 JSON을 파싱
       const parsed = JSON.parse(raw);
-      // migrate legacy single soundVolume to both music/voice if needed
+      // 이전 버전에서 soundVolume 하나만 있던 경우 music/voice에 복사하여 마이그레이션 처리
       if (typeof parsed.musicVolume === 'undefined' && typeof parsed.voiceVolume === 'undefined' && typeof parsed.soundVolume === 'number'){
         parsed.musicVolume = parsed.soundVolume;
         parsed.voiceVolume = parsed.soundVolume;
@@ -160,35 +197,34 @@
       return Object.assign({}, defaults);
     }
   }
-
+  // 설정 저장 함수
   function writeSettings(s){
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }catch(e){}
   }
-
+  // 언어 적용 함수
   function applyLanguage(lang){
-    // update UI strings we know about
-    const t = translations[lang] || translations.ko;
-    const btnStart = document.getElementById('btnStart');
-    const btnHow = document.getElementById('btnHow');
-    const btnSettings = document.getElementById('btnSettings');
-    if (btnStart) btnStart.textContent = t.start;
-    if (btnHow) btnHow.textContent = t.how;
-    if (btnSettings) btnSettings.textContent = t.settings;
-    // update the large background game title according to language
-    const titleEl = document.querySelector('.game-title');
-    if (titleEl) {
-      const tMain = t.titleMain || '';
-      const tSub = t.titleSub || '';
-      // if translations provide a starWord, wrap its first occurrence with the starry markup
-      let mainHTML = tMain;
+    // 알려진 UI 문자열을 업데이트
+    const t = translations[lang] || translations.ko;  // 기본값은 한국어
+    const btnStart = document.getElementById('btnStart');   // '게임시작' 버튼 요소
+    const btnHow = document.getElementById('btnHow');   // '게임설명' 버튼 요소
+    const btnSettings = document.getElementById('btnSettings'); // '환경설정' 버튼 요소
+    if (btnStart) btnStart.textContent = t.start;   // '게임시작' 버튼 텍스트 업데이트
+    if (btnHow) btnHow.textContent = t.how;         // '게임설명' 버튼 텍스트 업데이트
+    if (btnSettings) btnSettings.textContent = t.settings; // '환경설정' 버튼 텍스트 업데이트
+    const titleEl = document.querySelector('.game-title');  // 대형 배경 게임 타이틀 요소
+    if (titleEl) {  
+      const tMain = t.titleMain || '';  // 메인 타이틀
+      const tSub = t.titleSub || '';  // 서브 타이틀
+      let mainHTML = tMain; // 기본 메인 타이틀 HTML
+      // 별 모양 강조 단어가 있으면 해당 단어를 감싸서 강조 처리
       if (t.starWord && tMain.indexOf(t.starWord) !== -1) {
         const escaped = t.starWord;
         mainHTML = tMain.replace(escaped, `<span class=\"starry\"><span class=\"stars\" aria-hidden=\"true\"></span>${escaped}</span>`);
       }
-      // assemble DOM: large line for main, small line for sub (in parentheses if provided)
+      // 업데이트된 타이틀 HTML 설정
       titleEl.innerHTML = `<span class=\"title-line title-large\">${mainHTML}</span><span class=\"title-line title-small\">${tSub}</span>`;
     }
-    // update modal titles if open
+    // 모달이 열려 있는 경우 모달 내부의 타이틀과 버튼 텍스트도 업데이트
     const modal = document.querySelector('.modal');
     if (modal) {
       const h2 = modal.querySelector('h2');
@@ -202,26 +238,27 @@
       const langLabel = modal.querySelector('.settings-language-label');
       if (langLabel) langLabel.textContent = t.languageLabel;
     }
-    // broadcast a languagechange event for other modules to react
+    // 다른 모듈이 반응할 수 있도록 languagechange 이벤트를 전파
     try{ document.dispatchEvent(new CustomEvent('languagechange', { detail: { language: lang } })); }catch(e){}
   }
-
+  // 설정 모달 열기 함수
   function open(){
-    const settings = readSettings();
-    const t = translations[settings.language] || translations.ko;
+    const settings = readSettings();  // 현재 설정 읽기
+    const t = translations[settings.language] || translations.ko; // 현재 언어에 맞는 번역 데이터
 
-    // build modal
+    // 모달 구성
     const modal = document.createElement('div');
-    modal.className = 'modal settings-modal';
-    modal.setAttribute('role','dialog');
-    modal.setAttribute('aria-modal','true');
+    modal.className = 'modal settings-modal';  // 설정 모달 클래스
+    modal.setAttribute('role','dialog');  // 대화상자 역할 지정
+    modal.setAttribute('aria-modal','true');  // 모달 대화상자임을 명시
 
+    // 모달 내부 HTML 구성
     modal.innerHTML = `
       <h2>${t.settingsTitle}</h2>
       <div class="settings-row">
         <label class="settings-sound-label">${t.soundLabel}</label>
         <div>
-          <!-- checkbox next to the sound label -->
+          <!-- 사운드 라벨 옆 체크박스 -->
           <label style="display:inline-flex;align-items:center;gap:8px;">
             <input type="checkbox" class="settings-sound-enabled" aria-label="${t.soundLabel}">
           </label>
@@ -256,23 +293,23 @@
       </div>
     `;
 
-  // wire up elements
-  const chk = modal.querySelector('.settings-sound-enabled');
-  const musicVol = modal.querySelector('.settings-music-volume');
-  const voiceVol = modal.querySelector('.settings-voice-volume');
-  const sel = modal.querySelector('.settings-language');
-    const saveBtn = modal.querySelector('.settings-save');
-    const closeBtn = modal.querySelector('.close');
+  // 모달 내부 요소 참조 및 초기화
+  const chk = modal.querySelector('.settings-sound-enabled'); // 사운드 활성화 체크박스
+  const musicVol = modal.querySelector('.settings-music-volume'); // 음악 볼륨 슬라이더
+  const voiceVol = modal.querySelector('.settings-voice-volume'); // 음성 볼륨 슬라이더
+  const sel = modal.querySelector('.settings-language'); // 언어 선택 셀렉트
+  const saveBtn = modal.querySelector('.settings-save'); // 저장 버튼
+  const closeBtn = modal.querySelector('.close'); // 닫기 버튼
 
-    // checkbox semantics: checked === OFF, unchecked === ON
+    // 체크박스 의미: 체크되어 있으면 OFF, 체크 해제이면 ON
     chk.checked = !settings.soundEnabled;
-    // set individual volumes (migrate if needed handled in readSettings)
+    // 개별 볼륨 설정 (필요한 마이그레이션은 readSettings에서 처리됨)
     musicVol.value = (typeof settings.musicVolume === 'number') ? settings.musicVolume : defaults.musicVolume;
     voiceVol.value = (typeof settings.voiceVolume === 'number') ? settings.voiceVolume : defaults.voiceVolume;
-    // show/hide volume controls depending on sound enabled
+    // 사운드 활성화 여부에 따라 볼륨 컨트롤을 보이거나 숨김
     const volWrap = modal.querySelector('.settings-volume-wrap');
     if (volWrap) {
-      // when checkbox is checked => sound is OFF, so hide the volume controls
+      // 체크박스가 체크되어 있으면 사운드 OFF이므로 볼륨 컨트롤 숨김
       if (chk.checked) {
         volWrap.style.display = 'none';
         musicVol.setAttribute('aria-hidden','true'); musicVol.disabled = true;
@@ -285,11 +322,11 @@
     }
     sel.value = settings.language || 'ko';
 
-    // live preview: change volume & language immediately
+    // 미리보기 즉시 적용: 볼륨 및 언어를 즉시 반영
     chk.addEventListener('change', function(){
-      // checked means OFF, so invert when storing
+      // 체크는 OFF를 의미하므로 저장 시 반전하여 기록
       const s = readSettings(); s.soundEnabled = !chk.checked; writeSettings(s);
-      // toggle volume UI: show when sound is ON (unchecked)
+      // 볼륨 UI 토글: 사운드 ON(체크 해제)일 때 보이도록 처리
       if (volWrap) {
         if (chk.checked) {
           // OFF -> hide volumes
@@ -301,26 +338,31 @@
           musicVol.disabled = false; musicVol.removeAttribute('aria-hidden');
           voiceVol.disabled = false; voiceVol.removeAttribute('aria-hidden');
         }
-          // notify audio managers that settings changed (mute/unmute)
+          // 오디오 관리자에게 설정 변경을 알림 (음소거/해제 등)
           try{ if (window.MenuBGM && typeof window.MenuBGM.updateVolume === 'function') window.MenuBGM.updateVolume(); }catch(e){}
           try{ document.dispatchEvent(new Event('settingschange')); }catch(e){}
       }
     });
+    // 음악 볼륨 슬라이더 핸들러
     musicVol.addEventListener('input', function(){
       const s = readSettings(); s.musicVolume = parseFloat(musicVol.value); writeSettings(s);
+        // 변경된 볼륨을 오디오 관리자에 적용하고 settingschange 이벤트를 발송
         try{ if (window.MenuBGM && typeof window.MenuBGM.updateVolume === 'function') window.MenuBGM.updateVolume(); }catch(e){}
         try{ document.dispatchEvent(new Event('settingschange')); }catch(e){}
     });
+    // 음성 볼륨 슬라이더 핸들러
     voiceVol.addEventListener('input', function(){
       const s = readSettings(); s.voiceVolume = parseFloat(voiceVol.value); writeSettings(s);
         try{ if (window.MenuBGM && typeof window.MenuBGM.updateVolume === 'function') window.MenuBGM.updateVolume(); }catch(e){}
         try{ document.dispatchEvent(new Event('settingschange')); }catch(e){}
     });
+    // 언어 선택 즉시 적용
     sel.addEventListener('change', function(){
+      // 언어 즉시 적용 및 저장
       applyLanguage(sel.value);
       const s = readSettings(); s.language = sel.value; writeSettings(s);
     });
-
+    // 저장 버튼 핸들러
     saveBtn.addEventListener('click', function(){
       const s = readSettings();
       // persist inverted checkbox semantics (checked === OFF)
@@ -329,39 +371,41 @@
       s.voiceVolume = parseFloat(voiceVol.value);
       s.language = sel.value;
       writeSettings(s);
-      // apply language one more time (defensive)
+      // 언어를 한 번 더 적용(안정성 확보)
       applyLanguage(s.language);
         try{ if (window.MenuBGM && typeof window.MenuBGM.updateVolume === 'function') window.MenuBGM.updateVolume(); }catch(e){}
         try{ document.dispatchEvent(new Event('settingschange')); }catch(e){}
-      // close and restore UI
+      // 모달 닫기 및 UI 복원
       try{ closeModal(); }catch(e){ /* best-effort */ }
     });
-
+    // 닫기 버튼 핸들러
     closeBtn.addEventListener('click', function(){
-      // just close and restore UI (don't persist unsaved changes)
+      // 저장하지 않고 모달을 닫고 UI를 복원
       try{ closeModal(); }catch(e){ /* best-effort */ }
     });
 
-    // create a backdrop so background controls are not clickable
+    // 백드롭 생성: 배경 컨트롤이 클릭되지 않도록 함
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
 
-    // list of ids to disable while modal is open
+    // 모달이 열린 동안 비활성화할 요소 id 목록
     const disableIds = ['btnStart','btnHow','btnSettings'];
     const disabledElements = [];
+    // 배경 요소 비활성화/복원 함수
     function disableBackgroundElements(){
       disableIds.forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
-        // store previous disabled state
+        // 이전 disabled 상태 저장
         el.dataset._wasDisabled = el.disabled ? '1' : '0';
         try{ el.disabled = true; }catch(e){}
-        // also remove from tab order
+        // 탭 순서에서 제외
         el.dataset._wasTabIndex = el.getAttribute('tabindex') || '';
         el.setAttribute('tabindex','-1');
         disabledElements.push(el);
       });
     }
+    // 배경 요소 복원 함수
     function restoreBackgroundElements(){
       disabledElements.forEach(el => {
         try{ el.disabled = (el.dataset._wasDisabled === '1'); }catch(e){}
@@ -373,18 +417,19 @@
       disabledElements.length = 0;
     }
 
-    // append backdrop then modal
+    // 백드롭을 먼저 추가한 뒤 모달을 추가
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
 
-    // disable background buttons
+    // 배경 버튼 비활성화
     disableBackgroundElements();
 
-    // focus management: trap focus inside modal
+    // 포커스 관리: 모달 내부로 포커스를 고정
     const FOCUSABLE = 'a[href], area[href], input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
     let focusableInside = Array.from(modal.querySelectorAll(FOCUSABLE)).filter(el => el.offsetParent !== null);
     function refreshFocusable(){ focusableInside = Array.from(modal.querySelectorAll(FOCUSABLE)).filter(el => el.offsetParent !== null); }
 
+    // 키다운 이벤트 핸들러
     function onKeyDown(e){
       if (e.key === 'Escape'){
         e.preventDefault();
@@ -406,6 +451,7 @@
       }
     }
 
+    // 모달 닫기 함수
     function closeModal(){
       try{ modal.remove(); }catch(e){}
       try{ backdrop.remove(); }catch(e){}
@@ -416,18 +462,18 @@
       applyLanguage(saved.language);
     }
 
-    // wire key handler
+    // 키 이벤트 핸들러 연결
     document.addEventListener('keydown', onKeyDown, true);
 
-    // focus the first focusable element in the modal
+    // 모달 내의 첫 번째 포커서 가능한 요소에 포커스 이동
   try{ setTimeout(() => { refreshFocusable(); if (focusableInside[0]) focusableInside[0].focus(); else if (musicVol) musicVol.focus(); else closeBtn.focus(); }, 10); }catch(e){}
   }
 
-  // init: apply stored language right away so menu uses correct language
+  // 초기화: 저장된 언어를 바로 적용하여 메뉴가 올바른 언어를 사용하도록 함
   (function init(){
     const s = readSettings();
     applyLanguage(s.language);
-    // expose API
+    // API 노출
     window.Settings = window.Settings || {};
     window.Settings.open = open;
     window.Settings.get = readSettings;

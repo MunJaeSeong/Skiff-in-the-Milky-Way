@@ -1,100 +1,122 @@
-// 간단한 스타트 화면 스크립트
-document.addEventListener('DOMContentLoaded', function(){
-  const startScreen = document.getElementById('startScreen');
-  const btnStart = document.getElementById('btnStart');
-  const btnHow = document.getElementById('btnHow');
-  const btnSettings = document.getElementById('btnSettings');
-  const canvas = document.getElementById('gameCanvas');
-  const selectCanvas = document.getElementById('gameSelectCanvas');
-  const selectUI = document.getElementById('gameSelectUI');
+/*
+  파일: js/main.js
+  설명: 게임 시작 화면(타이틀 화면)을 제어하는 스크립트
+    - '게임시작' 버튼을 누르면 스테이지 선택 화면을 보여줍니다.
+    - '게임설명'과 '환경설정' 버튼은 각각 다른 모듈에게 기능을 맡깁니다.
+    - 시작 화면에 반짝이는 별 효과를 만들고, 메뉴 배경음 호출도 시작합니다.
 
+  주요 행동:
+    - 버튼 클릭 연결 (시작, 설명, 설정)
+    - 기본 모달 생성 함수 `showModal` 제공 (간단한 팝업)
+    - 시작 화면의 초기 보이기/숨기기 상태 설정
+    - 배경 별(stars) 요소 생성으로 시각 효과 추가
+
+  핵심 아이디어:
+    사용자가 '게임시작'을 누르면 실제 게임 자체를 바로 실행하지 않고,
+    스테이지 선택 화면을 먼저 보여주도록 연결해 주는 역할을 합니다.
+*/
+
+// DOMContentLoaded 이벤트 후 실행
+document.addEventListener('DOMContentLoaded', function(){
+  // 내부 변수 선언 및 요소 참조
+  const startScreen = document.getElementById('startScreen'); // 시작 화면 요소
+  const btnStart = document.getElementById('btnStart'); // '게임시작' 버튼 요소
+  const btnHow = document.getElementById('btnHow'); // '게임설명' 버튼 요소
+  const btnSettings = document.getElementById('btnSettings'); // '환경설정' 버튼 요소
+  const gameCanvas = document.getElementById('gameCanvas'); // 메인 게임 캔버스 요소
+  const selectCanvas = document.getElementById('gameSelectCanvas'); // 스테이지 선택 캔버스 요소
+  const gameSelectUI = document.getElementById('gameSelectUI'); // 스테이지 선택 UI 요소
+
+  // 시작 화면 숨기기 및 스테이지 선택 UI 표시 함수
   function hideStartScreen(){
+    // 숨기기: start screen
     if (startScreen) startScreen.style.display = 'none';
-    // 기본 동작: show the game select canvas and UI, not the main game canvas.
+    // 기본 동작: 게임 선택 캔버스와 UI를 표시하고 메인 게임 캔버스는 표시하지 않습니다.
     if (selectCanvas){ selectCanvas.style.display = 'block'; try { selectCanvas.focus(); } catch(e){} }
-    if (selectUI){
-      selectUI.style.display = 'block';
-      selectUI.setAttribute('aria-hidden','false');
-      // move initial focus to first selectable stage item if present
-      try {
-        const firstStage = document.querySelector('.stage-item');
-        if (firstStage) firstStage.focus();
-      } catch (e) { /* ignore */ }
-      // ensure localization is refreshed when the select UI becomes visible
-      try{ if (window.StageSelect && typeof window.StageSelect.localize === 'function') window.StageSelect.localize(); }catch(e){}
+    // 게임 선택 UI 표시
+    if (gameSelectUI){
+      gameSelectUI.style.display = 'block';
+      gameSelectUI.setAttribute('aria-hidden','false');
     }
   }
 
+  // 게임 시작 버튼 클릭 이벤트 연결
   btnStart && btnStart.addEventListener('click', function(){
     hideStartScreen();
-    // Do not automatically start the game here. The selection UI will control when the
-    // actual game canvas (`#gameCanvas`) should be shown and window.startGame invoked.
+    /*
+    여기서는 게임을 자동으로 시작하지 않습니다.
+    스테이지 선택 UI를 표시하고 실제 게임 캔버스(`#gameCanvas`)와
+    `window.startGame`이 호출되는 시점을 별도로 제어합니다.
+    */
   });
 
+  // 게임 설명 버튼 클릭 이벤트 연결
   btnHow && btnHow.addEventListener('click', function(){
-    // Delegate explanation UI to explanation.js if available, otherwise fallback to simple modal
+    // 설명 UI 처리는 `explanation.js`에 위임하고, 없으면 간단한 모델로 대체
     if (window.Explanation && typeof window.Explanation.open === 'function') {
       window.Explanation.open();
     } else {
-      showModal('게임 설명', '<p>오류가 발생했습니다. 다시 시도해주세요.</p>');
+      showModel('게임 설명', '<p>오류가 발생했습니다. 다시 시도해주세요.</p>');
     }
   });
 
+  // 환경설정 버튼 클릭 이벤트 연결
   btnSettings && btnSettings.addEventListener('click', function(){
-    // Delegate settings UI to setting.js if available, otherwise fallback to simple modal
+    // 환경설정 UI 처리는 `setting.js`에 위임하고, 없으면 간단한 모델로 대체
     if (window.Settings && typeof window.Settings.open === 'function') {
       window.Settings.open();
     } else {
-      showModal('환경설정', '<p>오류가 발생했습니다. 다시 시도해주세요.</p>');
+      showModel('환경설정', '<p>오류가 발생했습니다. 다시 시도해주세요.</p>');
     }
   });
 
-  // 모달 생성/표시 함수
-  function showModal(title, html){
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-modal', 'true');
-    modal.innerHTML = `<h2>${title}</h2><div>${html}</div>`;
+  // 모델 생성/표시 함수
+  function showModel(title, html){
+    const model = document.createElement('div');
+    model.className = 'modal';
+    model.setAttribute('role', 'dialog');
+    model.setAttribute('aria-modal', 'true');
+    model.innerHTML = `<h2>${title}</h2><div>${html}</div>`;
     const close = document.createElement('button');
     close.className = 'close';
     close.textContent = '닫기';
     close.addEventListener('click', function(){
-      try { modal.remove(); } catch (e) { /* ignore */ }
+      try { model.remove(); } catch (e) { /* ignore */ }
     });
-    modal.appendChild(close);
-    document.body.appendChild(modal);
-    // focus close so keyboard users can dismiss quickly
+    model.appendChild(close);
+    document.body.appendChild(model);
+    // 키보드 사용자가 빠르게 닫을 수 있도록 닫기 버튼에 포커스 설정(키보드로 접근 가능하게)
     try { close.focus(); } catch (e) {}
   }
 
-  // 초기 상태: both canvases and select UI are hidden; start screen visible
-  if (canvas) canvas.style.display = 'none';
-  if (selectCanvas) selectCanvas.style.display = 'none';
-  if (selectUI) { selectUI.style.display = 'none'; selectUI.setAttribute('aria-hidden','true'); }
+  // 초기 상태: 두 캔버스와 선택 UI는 숨기고 시작 화면은 보이게 설정
+  if (gameCanvas) gameCanvas.style.display = 'none';  // 메인 게임 캔버스 숨기기
+  if (selectCanvas) selectCanvas.style.display = 'none'; // 스테이지 선택 캔버스 숨기기
+  // 스테이지 선택 UI 숨기기
+  if (gameSelectUI) { gameSelectUI.style.display = 'none'; gameSelectUI.setAttribute('aria-hidden','true'); }
 
-  // create background stars on the start screen (gentle twinkle only)
+  // 시작 화면에 배경 별 생성 (부드러운 반짝임 효과)
   (function createBackgroundStars(){
     if (!startScreen) return;
-    // create container
+    // 컨테이너 생성
     const container = document.createElement('div');
     container.className = 'bg-stars';
-    // insert as first child so overlay sits above it
+    // 첫 번째 자식으로 삽입하여 오버레이가 위에 위치하도록 함
     startScreen.prepend(container);
 
-    const count = 80; // number of stars
+    const count = 80; // 별 개수
     for (let i = 0; i < count; i++){
       const s = document.createElement('div');
       s.className = 'bg-star';
-      // size variety
+      // 크기 구분
       const r = Math.random();
       if (r < 0.6) s.classList.add('small');
       else if (r < 0.9) s.classList.add('med');
       else s.classList.add('large');
-      // random position
+      // 무작위 위치
       s.style.left = (Math.random()*100) + '%';
       s.style.top = (Math.random()*100) + '%';
-      // random twinkle duration and delay
+      // 무작위 깜박임 지속시간 및 지연
       const dur = (1.2 + Math.random()*3.2).toFixed(2) + 's';
       const delay = (Math.random()*4).toFixed(2) + 's';
       s.style.setProperty('--dur', dur);
@@ -102,6 +124,7 @@ document.addEventListener('DOMContentLoaded', function(){
       container.appendChild(s);
     }
   })();
-  // start menu background music (best-effort; autoplay may be blocked until user gesture)
+  // 시작 메뉴 배경 음악 (최선의 노력; 사용자 제스처가 있을 때까지 자동 재생이 차단될 수 있음)
+  // menuBgm.js 를 참조
   try{ if (window.MenuBGM && typeof window.MenuBGM.play === 'function') window.MenuBGM.play(); }catch(e){}
 });
