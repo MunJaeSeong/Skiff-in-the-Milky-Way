@@ -1,11 +1,11 @@
 /*
   gameScript.js
-  - Core game runtime: canvas setup, main loop, entity management
-  - Exposes `window.Game` API for loading stages and controlling the game
-  - Stages should register themselves via `window.registerStage(id, module)`
+  - 핵심 게임 런타임: 캔버스 설정, 메인 루프, 엔티티 관리
+  - 스테이지 로드 및 게임 제어를 위한 `window.Game` API를 노출
+  - 스테이지는 `window.registerStage(id, module)`로 자신을 등록해야 합니다
 
-  This is a lightweight draft to wire Player, stage modules and provide
-  spawn helpers. It's intentionally small and commented for later extension.
+  이 파일은 Player와 스테이지 모듈을 연결하고 스폰 헬퍼를 제공하기 위한
+  경량 초안입니다. 확장을 위해 의도적으로 작고 주석이 포함되어 있습니다.
 */
 (function(){
   'use strict';
@@ -14,7 +14,7 @@
   const STORAGE_KEY = 'skiff_custom_v1';
 
   // 저장된 커스터마이즈 데이터를 안전하게 읽어오는 헬퍼
-  // 반환 형태: 객체 (예: { character: 'assets/character/rea.jpg', ship: 'assets/skiffs/woodskiff.png', projectile: { img: '...' } })
+  // 반환 형태: 객체 (예: { character: 'assets/character/Rea/Rea.jpg'})
   function readCustom(){
     try{
       // 로컬스토리지에서 JSON 파싱, 예외 발생 시 빈 객체 반환
@@ -35,7 +35,7 @@
    * 주의: 이 파일은 최소 기능의 초안이며, 실제 게임 로직은 단계별로 확장해야 합니다.
    */
   const Game = {
-  // safety caps to avoid unbounded memory growth from runaway spawners
+  // 무분별한 스폰으로 인한 무한 증가를 방지하기 위한 안전 상한
   _MAX_BULLETS: 8000,
   canvas: null,
   ctx: null,
@@ -69,7 +69,7 @@
       this.canvas = c;
       this.ctx = c.getContext('2d');
       this.resize();
-      // load style variables from CSS (allows theming via css/game.css)
+      // CSS에서 스타일 변수를 읽어옵니다 (테마화에 사용)
       try{ this._loadStyles(); }catch(e){ console.warn('Failed to load styles:', e); }
       // 브라우저 크기 변경 시 캔버스 재조정
       // prevent double-init of global listeners if init is (accidentally) called multiple times
@@ -79,8 +79,8 @@
         this.keys = {};
         window.addEventListener('keydown', (e)=>{ this.keys[e.key] = true; });
         window.addEventListener('keyup', (e)=>{ this.keys[e.key] = false; });
-        // allow ESC to open the exit confirmation while in-game
-        // create a persistent on-screen "나가기" button (hidden until a stage runs)
+        // 게임 중 ESC로 종료 확인을 열 수 있게 함
+        // 지속적으로 존재하는 화면상의 "나가기" 버튼을 생성(스테이지 실행 전까지 숨김)
         try{
           let exitHudBtn = document.getElementById('game-exit-btn');
           if (!exitHudBtn){
@@ -109,9 +109,9 @@
       }
 
       // 스테이지 모듈이 호출할 수 있도록 전역 registerStage 노출
-      // 사용법: stage 스크립트는 window.registerStage('stage1', module) 호출
+      // 사용법: 스테이지 스크립트에서 window.registerStage('stage1', module) 를 호출
       window.registerStage = (id, module) => { this.registerStage(id, module); };
-      // If stage scripts ran earlier and stored pending registrations, consume them now
+      // 이전에 스테이지 스크립트가 실행되어 보류된 등록이 있으면 지금 처리
       try{
         if (window._pendingStages){
           Object.keys(window._pendingStages).forEach(k => {
@@ -126,8 +126,8 @@
     },
 
     /**
-     * Compute HUD layout metrics so effects and other code can align to HUD elements.
-     * Returns object: { panelX, pad, barWidthV, barX, barY, barHeightV, sdX, sdY, sdSize, scoreX }
+     * HUD 레이아웃 메트릭을 계산하여 이펙트 등에서 HUD 요소에 맞출 수 있게 함
+     * 반환 객체: { panelX, pad, barWidthV, barX, barY, barHeightV, sdX, sdY, sdSize, scoreX }
      */
     _computeHudLayout(){
       const pad = (this.styles && this.styles.pad) ? this.styles.pad : 14;
@@ -149,7 +149,7 @@
     },
 
     /**
-     * Start a low-HP attack effect using the player's character attack image
+     * 플레이어의 캐릭터 공격 이미지를 사용해 저체력(Low-HP) 공격 이펙트를 시작
      */
     _startLowHpAttackEffect(){
       try{
@@ -174,7 +174,7 @@
           candidates.push('assets/character/Rea_attack.png');
         }
 
-        // create Image that cycles through candidates on error (similar to player image loading)
+        // 이미지 객체 생성: 로드 실패 시 후보 이미지를 순환해서 시도함
         const img = new Image();
         img._broken = false;
         img._candidates = candidates.slice();
@@ -191,7 +191,7 @@
         };
         if (candidates.length) img.src = candidates[0];
 
-        // build effect payload
+        // 이펙트 페이로드 구성
         const m = this._computeHudLayout();
         const size = Math.min(120, Math.max(48, Math.floor((m.sdSize || 32) * 1.5)));
         const ef = {
@@ -212,10 +212,10 @@
           alpha: 1
         };
         this.hudEffects.push(ef);
-        // play a character-specific attack voice once when the low-HP effect starts
+        // 저체력 이펙트 시작 시 캐릭터별 공격 음성을 한 번 재생
         try{
           const self = this;
-          // avoid overlapping attack voice playback
+          // 공격 음성 겹침 방지
           if (!self._attackVoiceAudio || self._attackVoiceAudio.ended){
             let charId = null;
             try{ const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; charId = saved.character || saved.char || null; }catch(e){ charId = null; }
@@ -236,7 +236,7 @@
       }catch(e){ console.warn('Failed to start low HP attack effect', e); }
     },
 
-    /** 읽어온 CSS custom properties를 JS에서 쓸 수 있도록 파싱하여 저장합니다 */
+    /** 읽어온 CSS 커스텀 속성을 JS에서 사용하기 위해 파싱하여 저장합니다 */
     _loadStyles(){
       const cs = getComputedStyle(document.documentElement);
       const parseNum = (name, fallback) => {
@@ -276,7 +276,7 @@
       this._lost = false;
     },
 
-    /** 스테이지 모듈을 등록 (registerStage에서 호출됨) */
+    /** 스테이지 모듈 등록 (window.registerStage에서 호출됨) */
     registerStage(id, module){
       this.registeredStages[id] = module;
       console.log('Stage registered:', id);
@@ -284,8 +284,8 @@
 
     /**
      * 스테이지 스크립트를 동적으로 로드
-     * - 파일 위치 규약: js/game/stage/{stageId}.js
-     * - 스크립트 로드 완료 후, 해당 스크립트가 window.registerStage를 호출하여 등록되었는지 확인
+     * - 파일 경로 규약: js/game/stage/{stageId}.js
+     * - 로드 완료 후 스크립트가 window.registerStage로 등록되었는지 확인
      */
     loadStageScript(stageId){
       const self = this;
@@ -308,30 +308,30 @@
 
     /**
      * 스테이지 시작 진입점
-     * - 플레이어 인스턴스를 생성하고, 로컬 저장된 커스터마이즈를 적용함
-     * - 스테이지 모듈(init/start)을 호출하고 메인 루프를 시작
+     * - 플레이어 인스턴스를 생성하고 로컬에 저장된 커스터마이즈 적용
+     * - 스테이지 모듈의 init/start 훅을 호출하고 메인 루프 시작
      */
     startStage(stageId){
       const self = this;
       if (!this.canvas) this.init('gameCanvas');
       // 기존 스테이지/루프 정리
       this.stopStage();
-      // stop menu BGM when entering a gameplay stage
+      // 게임 플레이 스테이지로 진입할 때 메뉴 BGM 중지
       try{ if (window.MenuBGM && typeof window.MenuBGM.stop === 'function') window.MenuBGM.stop(); }catch(e){}
       // clear lost state so defeat detection works after restart
       this._lost = false;
       // 저장된 커스터마이즈를 읽어 플레이어에 적용
       const custom = readCustom();
-      // Player 클래스는 별도 파일(js/game/player.js)에 정의되어야 함
+      // Player 클래스는 별도 파일(js/game/player.js)에 정의되어 있어야 함
       if (!window.Player){ console.warn('Player class not found (js/game/player.js expected).'); }
-      // spawn player centered within the gameplay area (left 75% of canvas)
+      // 플레이어 스폰: 게임 영역 중앙(캔버스의 왼쪽 75% 영역)
       const panelW = Math.floor(this.width * 0.25);
       const gameAreaW = Math.max(100, this.width - panelW);
       this.player = window.Player ? new window.Player(this, Math.floor(gameAreaW / 2), this.height - 120) : null;
       if (this.player && typeof this.player.applyCustomization === 'function'){
         this.player.applyCustomization(custom);
       }
-      // If practice mode is enabled, grant the player a very large HP pool
+      // 연습 모드 활성화 시 플레이어에게 매우 큰 HP를 부여
       try{
         if (this.practiceMode){
           if (this.player){
@@ -355,7 +355,7 @@
         this.running = true;
         this.lastTime = performance.now();
         this.loop(this.lastTime);
-        // If this is stage1, start background music loop (assets/audio/stage1_bgm.mp3)
+        // 스테이지가 stage1이면 배경음악 반복 재생 시작 (assets/audio/stage1_bgm.mp3)
         try{
           // stop any existing bgm first
           if (this._bgmAudio){ try{ this._bgmAudio.pause(); }catch(e){} }
@@ -370,7 +370,7 @@
           }
         }catch(e){ /* best-effort bgm start */ }
         if (stageModule && typeof stageModule.start === 'function') stageModule.start();
-        // show the on-screen exit button when a stage is running
+        // 스테이지 실행 중이면 화면상의 나가기 버튼 표시
         try{ const exitHudBtn = document.getElementById('game-exit-btn'); if (exitHudBtn) exitHudBtn.style.display = ''; }catch(e){}
         return stageModule;
       });
@@ -383,15 +383,15 @@
       if (this.stageModule && typeof this.stageModule.stop === 'function'){
         try{ this.stageModule.stop(); }catch(e){}
       }
-      // clear entities to free references and avoid holding memory between stages
+      // 엔티티 배열을 비워 참조를 해제하고 스테이지 간 메모리 유지 방지
       this.enemies = [];
       this.bullets = [];
       this.stageModule = null;
       // ensure lost flag is cleared when stopping a stage
       this._lost = false;
-      // stop background music if any
+      // 배경음 재생 중이면 정지
       try{ if (this._bgmAudio){ try{ this._bgmAudio.pause(); }catch(e){} this._bgmAudio = null; } }catch(e){}
-      // hide on-screen exit button when stage stopped
+      // 스테이지 중지 시 화면 나가기 버튼 숨김
       try{ const exitHudBtn = document.getElementById('game-exit-btn'); if (exitHudBtn) exitHudBtn.style.display = 'none'; }catch(e){}
       // resume menu BGM when returning to menus
       try{ if (window.MenuBGM && typeof window.MenuBGM.play === 'function') window.MenuBGM.play(); }catch(e){}
@@ -412,7 +412,7 @@
      * 업데이트 단계
      * - 플레이어/적/탄환의 update 호출
      * - 탄환-적 충돌 판정 (단순 AABB)
-     * - 적(보스) 처치 시 스테이지에 알림
+     * - 적(특히 보스) 처치 시 스테이지에 알림
      */
     update(dt){
       // 플레이어 업데이트 (예외 안전하게 호출)
@@ -425,8 +425,8 @@
         if (b.dead) this.bullets.splice(i,1);
       }
 
-      // Ensure bullets that drift far outside the game area are removed even if their
-      // own update() doesn't mark them dead. This prevents stray bullets from lingering.
+      // 탄환이 게임 영역 밖으로 멀리 벗어나면 update()에서 dead로 표시되지 않아도 제거
+      // 흩어진 탄환이 남아있는 것을 방지
       if (this.bullets.length){
         const minX = -200; const minY = -200;
         const maxX = (this.width || 800) + 200;
@@ -444,7 +444,7 @@
         }
       }
 
-      // Safety trim: if bullets array grows beyond safe cap, drop oldest non-boss bullets
+      // 안전 트림: 탄환 배열이 허용치를 넘으면 오래된 적 탄환을 우선 삭제
       if (this.bullets.length > (this._MAX_BULLETS || 1200)){
         // remove oldest (front) bullets until under cap
         const excess = this.bullets.length - (this._MAX_BULLETS || 1200);
@@ -462,9 +462,9 @@
         console.warn('Bullet pool trimmed to avoid memory pressure, new length=', this.bullets.length);
       }
 
-      // 적(보스 전용) 업데이트
-      // 주의: 이 게임은 보스 전용이므로 일반 몬스터 생성/삭제 로직은 제거하고
-      // 보스의 상태 변화(예: hp<=0)를 감지하면 스테이지 훅을 호출합니다.
+      // 적(보스) 업데이트
+      // 이 모드는 보스 중심이므로 일반 몬스터 풀 로직 대신 보스 HP 변화를 감지하여
+      // 스테이지 훅을 호출합니다.
       for (let i = 0; i < this.enemies.length; i++){
         const e = this.enemies[i];
         if (!e) continue;
@@ -477,8 +477,8 @@
         }
       }
 
-      // 플레이어와 적(보스 포함)의 접촉 충돌 처리 (player.r 사용)
-      // 플레이어가 무적이면 충돌 판정을 건너뜁니다
+      // 플레이어와 적(보스 포함)의 충돌 처리 (원형 히트박스: player.r 사용)
+      // 플레이어가 무적(invulnerable) 상태이면 충돌 판정을 건너뜁니다
       if (this.player && !this.player.invulnerable){
         const px = (typeof this.player.x === 'number') ? this.player.x : 0;
         const py = (typeof this.player.y === 'number') ? this.player.y : 0;
@@ -497,7 +497,7 @@
           const dx = px - closestX;
           const dy = py - closestY;
           if (dx*dx + dy*dy <= (pr * pr)){
-            // collision: apply 1 damage and trigger invulnerability
+            // 충돌 발생: 1 데미지 적용 후 무적 상태와 타이머 설정
             this.player.hp = Math.max(0, (this.player.hp || 0) - 1);
             this.player.invulnerable = true;
             this.player.invulTimer = (this.player.invulDur || 2.0);
@@ -508,7 +508,7 @@
         }
       }
 
-      // 플레이어 소유 탄환과 적 간의 충돌 단순 처리
+      // 플레이어 소유 탄환과 적 간의 충돌 간단 처리
       for (let bi = this.bullets.length-1; bi>=0; bi--){
         const b = this.bullets[bi];
         if (b.owner === 'player'){
@@ -523,8 +523,8 @@
         }
       }
 
-      // 적(혹은 적 소유) 탄막과 플레이어 충돌 처리
-      // Use player's hit pixel radius (player.r) rather than its box size for collision
+      // 적 탄막과 플레이어 충돌 처리
+      // 충돌 계산은 플레이어의 픽셀 반지름(player.r)을 사용
       if (this.player){
         const px = (typeof this.player.x === 'number') ? this.player.x : 0;
         const py = (typeof this.player.y === 'number') ? this.player.y : 0;
@@ -543,16 +543,16 @@
           const dist2 = dx*dx + dy*dy;
           const rad = (pr || 0) + (br || 0);
           if (dist2 <= rad * rad){
-            // apply damage (default 1)
+            // 데미지 적용 (기본값 1)
             const dmg = (typeof b.damage === 'number') ? b.damage : 1;
             this.player.hp = Math.max(0, (this.player.hp || 0) - dmg);
-            // increment hit counter when player is hit by enemy bullet
+            // 적 탄환에 맞으면 히트 카운터 증가
             try{ this.hits = (this.hits || 0) + 1; }catch(e){}
             // trigger invulnerability and blinking
             this.player.invulnerable = true;
             this.player.invulTimer = (this.player.invulDur || 2.0);
             this.player.invulBlinkTimer = 0;
-            // remove the bullet immediately
+            // 탄환 즉시 제거
             try{ this.bullets.splice(bi,1); }catch(e){}
             // stop processing other bullets this frame (player is now invulnerable)
             break;
@@ -560,23 +560,23 @@
         }
       }
 
-      // 스테이지 모듈의 추가 업데이트 훅 호출 (옵션)
+      // 스테이지 모듈의 선택적 추가 업데이트 훅 호출
       if (this.stageModule && typeof this.stageModule.onUpdate === 'function'){
         try{ this.stageModule.onUpdate(dt); }catch(e){}
       }
 
-      // HUD effects update (advance and remove expired effects)
+      // HUD 이펙트 업데이트 (진행 및 만료된 이펙트 제거)
       if (this.hudEffects && this.hudEffects.length){
         for (let i = this.hudEffects.length - 1; i >= 0; i--){
           const ef = this.hudEffects[i];
           ef.elapsed = (ef.elapsed || 0) + dt;
-          // lifecycle durations (configured per-effect)
+          // 이펙트의 생명주기 시간 계산 (각 이펙트별 설정)
           const total = (ef.slideIn || 0.5) + (ef.blink || 0.8) + (ef.fade || 0.9);
           if (ef.elapsed >= total){
             this.hudEffects.splice(i,1);
             continue;
           }
-          // update position based on HUD layout
+          // HUD 레이아웃에 따라 위치 업데이트
           try{
             const m = this._computeHudLayout();
             // start closer to the right edge to shorten slide-in distance
@@ -589,7 +589,7 @@
             ef.x = startX + (endX - startX) * slideT;
             // keep the image bottom aligned with the canvas bottom during the animation
             ef.y = (this.height || 600) - (ef.h || 64);
-            // blink during blink phase
+            // blink 단계에서는 깜빡임 처리
             if (ef.elapsed > slideDur && ef.elapsed <= (slideDur + (ef.blink || 0.8))){
               const blinkElapsed = ef.elapsed - slideDur;
               ef.visible = Math.floor(blinkElapsed / (ef.blinkPeriod || 0.12)) % 2 === 0;
@@ -599,11 +599,11 @@
               const fadeElapsed = ef.elapsed - (slideDur + (ef.blink || 0.8));
               ef.alpha = Math.max(0, 1 - Math.min(1, fadeElapsed / (ef.fade || 0.9)));
             } else ef.alpha = 1;
-          }catch(e){ /* ignore */ }
+          }catch(e){ /* 무시 */ }
         }
       }
 
-      // Low HP effect trigger: when player's HP falls to <=30% of maxHp, trigger once
+      // 저체력 이펙트 트리거: 플레이어 HP가 최대의 30% 이하가 되면 한 번 실행
       try{
         if (this.player && typeof this.player.hp === 'number' && typeof this.player.maxHp === 'number'){
           const pct = this.player.hp / Math.max(1, this.player.maxHp);
@@ -618,12 +618,12 @@
         }
       }catch(e){ }
 
-      // player death handling: if player's hp reaches 0, stop the game and show lose overlay
+      // 플레이어 사망 처리: HP가 0이 되면 게임을 정지시키고 패배 오버레이를 표시
       if (this.player && typeof this.player.hp === 'number' && this.player.hp <= 0 && !this._lost){
         this._lost = true;
-        // stop the main loop so gameplay stops. We keep HUD intact.
+        // 메인 루프 정지로 게임플레이 중지. HUD는 유지
         this.running = false;
-        // dynamically load lose.js (if not already loaded) and call showLose
+        // 동적으로 lose.js를 로드(없으면)하고 showLose 호출
         const loadAndShow = () => {
           if (typeof window.showLose === 'function'){
             try{
@@ -647,7 +647,7 @@
 
     /**
      * 간단한 충돌 판정 유틸
-     * - a, b는 {x,y,w,h} 또는 {x,y,r} 형태를 예상
+     * - a, b는 {x,y,w,h} 또는 {x,y,r} 형태를 기대함
      */
     rectIntersect(a,b){
       // Treat entity coordinates as centers (x,y are centers).
@@ -664,30 +664,30 @@
       return !(ax1 + aw < bx1 || bx1 + bw < ax1 || ay1 + ah < by1 || by1 + bh < ay1);
     },
 
-    /** 렌더 단계: 배경, 플레이어, 적, 탄환, 간단 HUD */
+    /** 렌더 단계: 배경, 플레이어, 적, 탄환 및 간단한 HUD 렌더링 */
     render(){
       const ctx = this.ctx;
       if (!ctx) return;
   ctx.clearRect(0,0,this.width,this.height);
 
-  // ensure styles are loaded (in case CSS changed dynamically)
+  // 스타일이 로드되어 있는지 확인 (동적 변경을 대비)
   if (!this.styles) this._loadStyles();
   const pad = this.styles.pad;
   // compute panel and game area sizes; panelFraction read from CSS variables
   const panelW = Math.floor(this.width * (this.styles.panelFraction || 0.25));
   const gameAreaW = Math.max(100, this.width - panelW);
 
-      // draw gameplay area (clipped to left region)
+      // 게임 플레이 영역 그리기 (왼쪽 영역에 클립)
       ctx.save();
       ctx.beginPath();
       ctx.rect(0, 0, gameAreaW, this.height);
       ctx.clip();
 
-  // gameplay background
+  // 게임 플레이 배경
   ctx.fillStyle = this.styles.gameBg || '#000022';
   ctx.fillRect(0, 0, gameAreaW, this.height);
 
-      // draw player and entities inside gameplay area
+      // 게임 플레이 영역 내부에 플레이어와 엔티티 그리기
       try{ if (this.player && this.player.draw) this.player.draw(ctx); }catch(e){ console.error(e); }
       this.enemies.forEach(e => { if (e.draw) e.draw(ctx); else { ctx.fillStyle='red'; ctx.fillRect(e.x-10,e.y-10,20,20); } });
       this.bullets.forEach(b => {
@@ -708,7 +708,7 @@
 
       ctx.restore();
 
-  // Boss HP bar: draw a horizontal, white "neon" bar across the top of the gameplay area
+  // 보스 HP 바: 게임 플레이 영역 상단에 가로형 화이트 네온 바를 그림
   const boss = this.enemies.find(e => e && e.isBoss);
   if (boss && typeof boss.hp === 'number'){
     const bx = Math.max(8, pad);
@@ -734,7 +734,7 @@
     ctx.restore();
   }
 
-  // draw HUD panel on the right
+  // 우측 HUD 패널 그리기
   const panelX = gameAreaW;
   ctx.fillStyle = this.styles.panelBg || '#0b1220';
   ctx.fillRect(panelX, 0, panelW, this.height);
@@ -744,7 +744,7 @@
 
   // (score is drawn to the right of the vertical HP bar)
 
-  // Vertical HP bar (left side of HUD panel) — 위에서부터 채워지는 방식
+  // 세로 HP 바 (HUD 패널 왼쪽) — 위에서 아래로 채워지는 방식
   const hp = (this.player && typeof this.player.hp === 'number') ? this.player.hp : 0;
   const maxHp = (this.player && typeof this.player.maxHp === 'number') ? this.player.maxHp : 10;
   const pct = Math.max(0, Math.min(1, hp / (maxHp || 1)));
@@ -758,7 +758,7 @@
   // background
   ctx.fillStyle = this.styles.innerBg || '#12202b';
   ctx.fillRect(barX, barY, barWidthV, barHeightV);
-  // filled portion: anchor at bottom so the bar 'disappears' from the top downward
+  // 채워진 부분: 아래쪽을 기준으로 채워져 위에서부터 사라지는 방식으로 보임
   const fillH = Math.floor(barHeightV * pct);
   ctx.fillStyle = this.styles.accent || '#ef4444';
   // draw filled area anchored to bottom
@@ -770,7 +770,7 @@
 
   // Score text moved to the right of the vertical HP bar (바를 스코어에 딱 붙임)
   // SD 이미지 (HP 바 바로 오른쪽)
-  // SD portrait: base size then scale (configured via CSS var --sd-scale), but cap to available space
+  // SD 초상화: 기본 크기 후 스케일 적용(CSS 변수 --sd-scale), 사용 가능한 영역을 초과하지 않게 제한
   const baseSd = Math.min(this.styles.sdBase || 64, barHeightV, panelW - (barWidthV + pad*2));
   let sdSize = Math.floor(baseSd * (this.styles.sdScale || 2.5));
   // ensure it doesn't overflow the available width or height of the HUD
@@ -781,12 +781,12 @@
   if (this.player && this.player.sdSprite && this.player.sdSprite.complete && !this.player.sdSprite._broken && this.player.sdSprite.naturalWidth > 0){
     try{ ctx.drawImage(this.player.sdSprite, sdX, sdY, sdSize, sdSize); }catch(e){}
   } else {
-    // placeholder box if SD image not loaded
+    // SD 이미지가 로드되지 않았을 때의 플레이스홀더 상자
     ctx.fillStyle = this.styles.sdPlaceholder || '#24313a';
     ctx.fillRect(sdX, sdY, sdSize, sdSize);
   }
 
-  // Score (or Hits in practice mode) text placed immediately to the right of the SD portrait
+  // 점수(또는 연습 모드의 히트 수)를 SD 초상화 오른쪽에 표시
   const scoreX = sdX + sdSize + 6;
   let sy = pad + 20;
   ctx.font = this.styles.labelFont || '16px sans-serif';
@@ -797,7 +797,7 @@
   ctx.font = this.styles.scoreFont || '28px monospace';
   ctx.fillText(value, scoreX, sy + 36);
 
-  // draw any HUD effects (e.g. low-HP attack image) on top of the HUD
+  // HUD 위에 이펙트(예: 저체력 공격 이미지)를 그리기
   try{
     if (this.hudEffects && this.hudEffects.length){
       this.hudEffects.forEach(ef => {
@@ -814,7 +814,7 @@
             // draw from right-to-left (ef.x is updated in update())
             ctx.drawImage(ef.img, x - w, y, w, h);
           } else {
-            // fallback: draw a pulsing placeholder rectangle
+            // 대체: 펄스형 플레이스홀더 사각형을 그림
             const w = ef.w || 72; const h = ef.h || 72;
             const x = (typeof ef.x === 'number') ? ef.x : (scoreX + 80);
             const y = (typeof ef.y === 'number') ? ef.y : (sdY + ((sdSize - h)/2));
@@ -828,7 +828,7 @@
   }catch(e){}
     },
 
-    // 엔티티 생성 헬퍼들 (스테이지/플레이어가 호출)
+    // 엔티티 생성 헬퍼 (스테이지/플레이어에서 호출)
     spawnPlayerBullet(b){
       if (this.bullets.length >= (this._MAX_BULLETS || 1200)){
         // drop player bullets if pool full to avoid memory blowup
@@ -844,7 +844,7 @@
       this.bullets.push(b); return b;
     },
     spawnBoss(entity){
-      // Directly register boss entity. No generic enemy caps in boss-only mode.
+      // 보스 엔티티를 직접 등록. 보스 전용 모드이므로 일반 적 수 제한 없음.
       entity.isBoss = true;
       this.enemies.push(entity);
       return entity;
@@ -852,11 +852,11 @@
 
     /**
      * 스테이지 종료 처리
-     * - 현재는 단순히 루프를 멈추고 alert를 띄움
+     * - 현재는 루프 중단 후 승리 처리 오버레이를 표시
      */
     endStage(){
       this.stopStage();
-      // dynamically load win.js and call showWin (fallback to alert if unavailable)
+      // 동적으로 win.js를 로드하고 showWin 호출 (없으면 alert 대체)
       const loadAndShow = () => {
         if (typeof window.showWin === 'function'){
           try{
@@ -879,8 +879,8 @@
       }
       ,
       /**
-       * Show an in-game exit confirmation. Pauses the game while visible.
-       * If user confirms, returns to stage select. If user cancels, counts down 3 seconds and resumes.
+       * 인게임 종료 확인창 표시. 보이는 동안 게임을 일시정지합니다.
+       * 사용자가 확인하면 스테이지 선택으로 복귀하고 취소하면 3초 카운트다운 후 재개합니다.
        */
       showExitConfirm(){
         try{

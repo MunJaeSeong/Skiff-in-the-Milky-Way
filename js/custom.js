@@ -186,8 +186,9 @@
     }
 
     // characters 배열에서 동적으로 캐릭터 항목을 렌더링
-  // 기본 선택 캐릭터는 'rea' (요청에 따라). 없으면 배열 첫 항목 사용
-  let selectedCharacter = (data && data.character) ? data.character : 'rea';
+  // 기본 선택 캐릭터는 'rea'로 설정합니다. 저장된 값이 있으면 그 값을 사용하고,
+  // 'rea'가 목록에 없을 경우에는 첫 항목을 기본으로 사용합니다.
+  let selectedCharacter = (data && data.character) ? data.character : (characters.find(c => c.id === 'rea') ? 'rea' : (characters[0] && characters[0].id) || 'rea');
     function createCharacterItem(ch){
       const item = document.createElement('button');
       item.type = 'button';

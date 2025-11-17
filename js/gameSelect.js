@@ -208,11 +208,17 @@
             // Build stage-specific paths from the stageId folder: js/game/<stageId>/...
             const base = `js/game/${stageId}/`;
             const playerSrc = `${base}player.js`;
+            const groundSrc = `${base}ground.js`;
             const gameSrc = `${base}gameScript.js`;
 
             // 로드 순서: player -> 게임 (game은 player가 없어도 실행되지만 Player가 필요한 경우가 있음)
+            // Load player, then ground, then game script to ensure dependencies exist
             loadScriptOnce(playerSrc).catch((e)=>{
                 console.warn('player.js 로드 실패:', e);
+            }).then(()=>{
+                return loadScriptOnce(groundSrc).catch((e)=>{
+                    console.warn('ground.js 로드 실패:', e);
+                });
             }).then(()=>{
                 return loadScriptOnce(gameSrc).catch((e)=>{
                     console.warn('gameScript.js 로드 실패:', e);
