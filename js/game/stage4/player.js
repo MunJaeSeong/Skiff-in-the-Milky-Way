@@ -98,6 +98,8 @@
 			this.facing = 'right'; // 'left' or 'right'
 			this.isMoving = false;
 			this.currentSprite = null;
+			// expose collision helper on the player object for external modules
+			try { this.player.getCollisionRect = this.getCollisionRect.bind(this); } catch (e) { }
 		},
 
 		updateMovement(keys) {
@@ -138,6 +140,44 @@
 		// small helper used by game loop to set grounded state
 		setGrounded(val) { this.player.grounded = !!val; },
 
+		// Return the inner collision rectangle (centered inside the drawn atlas/frame).
+		// This matches the red frame drawn in `draw()` and returns integers.
+		getCollisionRect() {
+			const p = this.player;
+			// Determine sprite currently used
+			const key = this.currentKey || 'stopRight';
+			const sprite = this.sprites && this.sprites[key] ? this.sprites[key] : {};
+			// Default draw area is the full player box
+			let drawW = p.width;
+			let drawH = p.height;
+			let dx = p.x;
+			let dy = p.y;
+			try {
+				if (sprite.atlas && sprite.atlas.complete) {
+					const frameW = sprite.atlasFrameW || 1;
+					const frameH = sprite.atlasFrameH || 1;
+					const ratio = frameW / frameH;
+					if ((p.width / p.height) > ratio) {
+						// limit by height
+						drawH = p.height;
+						drawW = Math.round(drawH * ratio);
+					} else {
+						// limit by width
+						drawW = p.width;
+						drawH = Math.round(drawW / ratio);
+					}
+					dx = p.x + Math.round((p.width - drawW) / 2);
+					dy = p.y + Math.round((p.height - drawH) / 2);
+				}
+			} catch (e) { /* fall back to full box */ }
+			// inner collision frame: width = 2/5 of drawW, height = 4/5 of drawH, centered
+			const innerW = Math.max(1, Math.round(drawW * 2 / 5));
+			const innerH = Math.max(1, Math.round(drawH * 4 / 5));
+			const innerX = dx + Math.round((drawW - innerW) / 2);
+			const innerY = dy + Math.round((drawH - innerH) / 2);
+			return { x: innerX, y: innerY, width: innerW, height: innerH };
+		},
+
 		// draw the player to a canvas context. If GIF sprites are available use them.
 		draw(ctx) {
 			const p = this.player;
@@ -171,12 +211,44 @@
 					const dx = p.x + Math.round((p.width - drawW) / 2);
 					const dy = p.y + Math.round((p.height - drawH) / 2);
 					ctx.drawImage(atlas, sx, sy, frameW, frameH, dx, dy, drawW, drawH);
+					// Draw outer outline (green) matching the player's collision box
+					try {
+						ctx.save();
+						ctx.strokeStyle = 'green';
+						ctx.lineWidth = 2;
+						ctx.strokeRect(p.x, p.y, p.width, p.height);
+						// Draw inner collision frame (red) centered inside the atlas-drawn frame
+						const innerW = Math.max(1, Math.round(drawW * 2 / 5));
+						const innerH = Math.max(1, Math.round(drawH * 4 / 5));
+						const innerX = dx + Math.round((drawW - innerW) / 2);
+						const innerY = dy + Math.round((drawH - innerH) / 2);
+						ctx.strokeStyle = 'red';
+						ctx.lineWidth = 2;
+						ctx.strokeRect(innerX, innerY, innerW, innerH);
+						ctx.restore();
+					} catch (e) { /* ignore drawing errors */ }
 					return;
 				} catch (e) { /* continue to fallback */ }
 			}
 			// fallback visual
 			ctx.fillStyle = 'blue';
 			ctx.fillRect(p.x, p.y, p.width, p.height);
+			// Draw outer outline (green) matching the player's collision box
+			try {
+				ctx.save();
+				ctx.strokeStyle = 'green';
+				ctx.lineWidth = 2;
+				ctx.strokeRect(p.x, p.y, p.width, p.height);
+				// Draw inner collision frame (red) centered inside the player box (fallback)
+				const innerW = Math.max(1, Math.round(p.width * 2 / 5));
+				const innerH = Math.max(1, Math.round(p.height * 4 / 5));
+				const innerX = p.x + Math.round((p.width - innerW) / 2);
+				const innerY = p.y + Math.round((p.height - innerH) / 2);
+				ctx.strokeStyle = 'red';
+				ctx.lineWidth = 2;
+				ctx.strokeRect(innerX, innerY, innerW, innerH);
+				ctx.restore();
+			} catch (e) { /* ignore drawing errors */ }
 		}
 	};
 
