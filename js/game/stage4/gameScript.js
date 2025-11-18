@@ -60,28 +60,7 @@
       playerModule.init(info.startPlatformY);
     }
 
-    // 랜덤 플랫폼 설정
-    const platformWidth = 80;
-    const platformHeight = 10;
-    const minDistanceFromStart = 20;
-    const maxPlatformY = startPlatformY - minDistanceFromStart - platformHeight;
-    const minPlatformY = 50;
-    const numRandomPlatforms = 6;
-
-    for (let i = 0; i < numRandomPlatforms; i++) {
-      let x, y;
-      const availableYRange = maxPlatformY - minPlatformY;
-      const yStep = availableYRange / numRandomPlatforms;
-      y = minPlatformY + i * yStep;
-      if (y + platformHeight >= startPlatformY) {
-        y = startPlatformY - minDistanceFromStart - platformHeight - (numRandomPlatforms - i) * 30;
-      }
-      if (y < minPlatformY) {
-        y = minPlatformY + i * 30;
-      }
-      x = Math.random() * (canvas.width - platformWidth);
-      platforms.push({ x: x, y: y, width: platformWidth, height: platformHeight });
-    }
+    // No additional random platforms for stage4; ground module provides base platform(s).
 
     // 그리기
     function drawPlayer() {
