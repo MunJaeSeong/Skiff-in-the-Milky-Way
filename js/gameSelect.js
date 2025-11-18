@@ -220,8 +220,12 @@
                     console.warn('ground.js 로드 실패:', e);
                 });
             }).then(()=>{
-                return loadScriptOnce(gameSrc).catch((e)=>{
-                    console.warn('gameScript.js 로드 실패:', e);
+                // Try to load an optional mapping.js for the stage (minimap), ignore failure
+                const mappingSrc = `${base}mapping.js`;
+                return loadScriptOnce(mappingSrc).catch(()=> Promise.resolve()).then(()=>{
+                    return loadScriptOnce(gameSrc).catch((e)=>{
+                        console.warn('gameScript.js 로드 실패:', e);
+                    });
                 });
             }).then(()=>{
                 try{

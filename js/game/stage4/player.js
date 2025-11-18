@@ -108,6 +108,20 @@
 			if (keys['ArrowRight']) { p.x += 3; p.xSpeed = 3; p.ySpeed = p.ySpeed; this.facing = 'right'; moving = true; }
 			this.isMoving = moving;
 
+			// clamp horizontal position to the visible game area (prevent leaving right edge)
+			try {
+				const canvasEl = document.getElementById && document.getElementById('gameCanvas');
+				let maxX = null;
+				if (canvasEl) {
+					// prefer the canvas coordinate width, fall back to its css size or viewport
+					const cw = canvasEl.width || (canvasEl.getBoundingClientRect && canvasEl.getBoundingClientRect().width) || window.innerWidth;
+					maxX = Math.max(0, cw - (p.width || 0));
+				} else {
+					maxX = Math.max(0, window.innerWidth - (p.width || 0));
+				}
+				if (typeof maxX === 'number') p.x = Math.min(maxX, Math.max(0, p.x));
+			} catch (e) { /* ignore in weird environments */ }
+
 			// vertical physics
 			p.ySpeed += p.gravity;
 			p.y += p.ySpeed;
