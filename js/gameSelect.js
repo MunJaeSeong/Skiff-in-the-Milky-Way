@@ -220,9 +220,14 @@
                     console.warn('ground.js 로드 실패:', e);
                 });
             }).then(()=>{
-                // Try to load an optional mapping.js for the stage (minimap), ignore failure
+                // Try to load optional map files for the stage so ground.init can pick them up.
+                // Many maps live under `js/game/<stageId>/map/` and define `window.Stage4Maps`.
+                // Load map files first (ignore failure), then mapping.js (minimap), then the game script.
+                const mapSrc = `${base}map/map_1.js`;
                 const mappingSrc = `${base}mapping.js`;
-                return loadScriptOnce(mappingSrc).catch(()=> Promise.resolve()).then(()=>{
+                return loadScriptOnce(mapSrc).catch(()=> Promise.resolve()).then(()=>{
+                    return loadScriptOnce(mappingSrc).catch(()=> Promise.resolve());
+                }).then(()=>{
                     return loadScriptOnce(gameSrc).catch((e)=>{
                         console.warn('gameScript.js 로드 실패:', e);
                     });

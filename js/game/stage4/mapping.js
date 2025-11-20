@@ -2,7 +2,12 @@
 (function () {
   'use strict';
 
-  // Expose `window.Stage4Map` with basic control methods.
+  /**
+   * Stage4 Minimap Module
+   * - Renders a small overlay canvas which shows a local window of the world
+   *   centered on the player (not necessarily the entire map).
+   * - The minimap draws nearby platforms and the finish marker (if visible).
+   */
   const Stage4Map = {
     canvas: null,
     ctx: null,
@@ -87,64 +92,83 @@
       const gameCanvas = document.getElementById('gameCanvas');
       if (!gameCanvas) return;
 
-      const gw = gameCanvas.width;
-      const gh = gameCanvas.height;
+      // world dimensions: prefer ground.worldWidth if available (world may be larger than canvas)
+      const gw = (window.Stage4Ground && typeof window.Stage4Ground.worldWidth === 'number') ? window.Stage4Ground.worldWidth : gameCanvas.width;
+      const gh = (window.Stage4Ground && typeof window.Stage4Ground.worldHeight === 'number') ? window.Stage4Ground.worldHeight : gameCanvas.height;
       if (!gw || !gh) return;
 
       // logical minimap size (CSS pixels)
       const mw = this.width;
       const mh = this.height;
 
-      // clear
+      // clear and background
       ctx.clearRect(0, 0, mw, mh);
-
-      // draw semi-transparent background
       ctx.fillStyle = 'rgba(10,10,10,0.45)';
       ctx.fillRect(0, 0, mw, mh);
-
-      // draw border
-      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
       ctx.lineWidth = 1;
       ctx.strokeRect(0.5, 0.5, mw - 1, mh - 1);
 
-      // scale factors from world -> minimap
-      const scaleX = mw / gw;
-      const scaleY = mh / gh;
+      // Choose a local world window centered on the player (minimap doesn't need to show the whole map)
+      const playerModule = window.Stage4Player;
+      const p = playerModule && playerModule.player ? playerModule.player : null;
+      // window size in world coords: show at least 4x the visible screen area (but no larger than the world)
+      // this gives the player a broader situational view while keeping the minimap focused.
+      const viewWorldW = Math.min(gw, Math.max(Math.round(gameCanvas.width * 4), Math.round(gameCanvas.width * 1.6)));
+      const viewWorldH = Math.min(gh, Math.max(Math.round(gameCanvas.height * 4), Math.max(64, Math.round(gameCanvas.height * 0.35))));
 
-      // draw platforms
+      let viewX = 0;
+      let viewY = 0;
+      if (p) {
+        viewX = Math.round(Math.max(0, Math.min(gw - viewWorldW, p.x - Math.round(viewWorldW / 2))));
+        viewY = Math.round(Math.max(0, Math.min(gh - viewWorldH, p.y - Math.round(viewWorldH / 2))));
+      }
+
+      // scale factors from the chosen world window -> minimap
+      const scaleX = mw / viewWorldW;
+      const scaleY = mh / viewWorldH;
+
+      // draw platforms that intersect the chosen window
       const ground = window.Stage4Ground;
       if (ground && Array.isArray(ground.platforms)) {
         ctx.fillStyle = '#2ecc71';
-        ground.platforms.forEach(p => {
-          const rx = p.x * scaleX;
-          const ry = p.y * scaleY;
-          const rw = Math.max(1, p.width * scaleX);
-          const rh = Math.max(1, p.height * scaleY);
+        ground.platforms.forEach(pl => {
+          if (pl.x + pl.width < viewX || pl.x > viewX + viewWorldW || pl.y + pl.height < viewY || pl.y > viewY + viewWorldH) return;
+          const rx = (pl.x - viewX) * scaleX;
+          const ry = (pl.y - viewY) * scaleY;
+          const rw = Math.max(1, pl.width * scaleX);
+          const rh = Math.max(1, pl.height * scaleY);
           ctx.fillRect(rx, ry, rw, rh);
         });
+        // draw finish marker if within the window
+        if (ground.finish) {
+          try {
+            const f = ground.finish;
+            if (!(f.x + f.width < viewX || f.x > viewX + viewWorldW || f.y + f.height < viewY || f.y > viewY + viewWorldH)) {
+              ctx.fillStyle = '#f39c12';
+              const fx = (f.x - viewX) * scaleX;
+              const fy = (f.y - viewY) * scaleY;
+              const fw = Math.max(2, f.width * scaleX);
+              const fh = Math.max(2, f.height * scaleY);
+              ctx.fillRect(fx, fy - Math.max(2, fh), fw, fh + 2);
+              ctx.fillStyle = '#c0392b';
+              ctx.fillRect(fx + Math.round(fw / 2), fy - Math.max(6, fh + 4), Math.max(1, Math.round(fw / 6)), Math.max(1, Math.round(fh / 2)));
+            }
+          } catch (e) { /* ignore */ }
+        }
       }
 
-      // draw player
-      const playerModule = window.Stage4Player;
-      if (playerModule && playerModule.player) {
-        const p = playerModule.player;
-        // map player's center
-        const cx = (p.x + p.width / 2) * scaleX;
-        const cy = (p.y + p.height / 2) * scaleY;
-        ctx.fillStyle = '#e74c3c';
+      // draw player as a dot in the minimap window
+      if (p) {
+        const cx = (p.x + p.width / 2 - viewX) * scaleX;
+        const cy = (p.y + p.height / 2 - viewY) * scaleY;
+        // draw a simple yellow circular marker for the player (no rectangular border)
+        ctx.fillStyle = '#f1c40f'; // yellow
         const r = Math.max(2, Math.min(6, Math.round(4 * Math.min(scaleX, scaleY))));
         ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
-
-        // optional: draw player bounds (small rect)
-        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect((p.x * scaleX) + 0.5, (p.y * scaleY) + 0.5, Math.max(1, p.width * scaleX - 1), Math.max(1, p.height * scaleY - 1));
       }
 
-      // draw viewport rectangle (the entire gameCanvas in this project)
-      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(2, 2, mw - 4, mh - 4);
+      // Optionally draw a small frame representing the chosen window inside the minimap (already whole minimap shows the window)
     }
   };
 
