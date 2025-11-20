@@ -3,12 +3,14 @@
   'use strict';
 
   /**
-   * Stage4 Ground Module
-   * - Responsible for platform creation, drawing and collision detection.
-   * - Supports loading platforms from `window.Stage4Maps[mapName]` (map files)
-   *   and also falls back to procedural generation if no map is provided.
-   * - Uses `worldHeight` (separate from canvas height) so levels can be taller
-   *   than the visible viewport.
+   * Stage4 땅(플랫폼) 모듈
+   *
+   * 쉬운 설명(중학생용):
+   * - 이 모듈은 게임 레벨의 '땅'과 플랫폼을 만들고 그리며, 충돌을 검사합니다.
+   * - 외부 맵 파일(window.Stage4Maps)을 읽어 플랫폼을 만들 수 있고,
+   *   맵이 없으면 코드가 자동으로 플랫폼을 만들어 냅니다(절차적 생성).
+   * - `worldHeight`는 화면(캔버스) 높이와 별개로 월드 전체의 높이를 뜻합니다.
+   *   즉, 보이는 창보다 훨씬 큰 월드를 만들 수 있고 카메라가 그 일부만 보여줍니다.
    */
   const Stage4Ground = {
     platforms: [],
@@ -43,17 +45,20 @@
       const mapData = maps && maps[mapName] ? maps[mapName] : null;
 
       if (mapData && Array.isArray(mapData.platforms)) {
-        // If the map provides an explicit startPlatform meta, let it override caller opts
-        if (mapData.startPlatform && typeof mapData.startPlatform === 'object'){
-          try{
-            if (typeof mapData.startPlatform.x === 'number') startPlatformX = mapData.startPlatform.x;
-            if (typeof mapData.startPlatform.width === 'number') startPlatformWidth = mapData.startPlatform.width;
-            if (typeof mapData.startPlatform.height === 'number') startPlatformHeight = mapData.startPlatform.height;
-            // update the already-pushed start platform so it matches the map (replace last element)
-            this.platforms[this.platforms.length - 1] = { x: startPlatformX, y: startPlatformY, width: startPlatformWidth, height: startPlatformHeight };
-          }catch(e){ /* ignore malformed startPlatform */ }
+          // 만약 맵(mapData)이 시작 발판 정보를 제공하면, 함수 호출자(opts)에서
+          // 전달한 값보다 맵의 값으로 우선 덮어씁니다. (맵에 맞춰 플레이어 시작 위치를 조정)
+          if (mapData.startPlatform && typeof mapData.startPlatform === 'object'){
+            try{
+              if (typeof mapData.startPlatform.x === 'number') startPlatformX = mapData.startPlatform.x;
+              if (typeof mapData.startPlatform.width === 'number') startPlatformWidth = mapData.startPlatform.width;
+              if (typeof mapData.startPlatform.height === 'number') startPlatformHeight = mapData.startPlatform.height;
+              // 이미 넣어둔 시작 플랫폼 항목을 맵 정보로 덮어씁니다.
+              this.platforms[this.platforms.length - 1] = { x: startPlatformX, y: startPlatformY, width: startPlatformWidth, height: startPlatformHeight };
+            }catch(e){ /* startPlatform 형식이 잘못되면 무시 */ }
         }
-        // Convert platform definitions that may use percent coordinates into absolute pixels
+          // 맵에 있는 플랫폼 항목을 순회하여, 퍼센트 좌표(xPercent/yPercent)가 있으면
+          // 월드 크기에 맞춰 픽셀 단위로 계산합니다. (절대 좌표 x/y도 허용)
+          // 이렇게 하면 같은 맵이 다른 해상도/월드 크기에서 비슷하게 보입니다.
         mapData.platforms.forEach(p => {
           // Allow platforms to be specified in absolute coords (`x`/`y`) or as percents (`xPercent`/`yPercent`).
           const platform = { x: 0, width: p.width || 100, height: p.height || 10 };
@@ -63,7 +68,8 @@
           // Y: percent relative to worldHeight if provided, else absolute y or fallback
           if (typeof p.yPercent === 'number') platform.y = Math.round(worldHeight * p.yPercent);
           else platform.y = (typeof p.y === 'number') ? p.y : Math.max(40, startPlatformY - 80);
-          // Include platform if it lies within world bounds (allow touching the right edge)
+          // 플랫폼이 월드 범위 안에 있으면 목록에 추가합니다.
+          // 오른쪽 끝에 딱 맞닿는 경우도 허용합니다.
           if (platform.x + platform.width <= worldWidth) this.platforms.push(platform);
         });
 
@@ -79,7 +85,8 @@
           this.finish = { x: fx, y: fy, width: fw, height: fh };
         }
       } else {
-        // Fallback: generate platforms procedurally if no map file found
+        // 맵 파일이 없을 때의 대체 동작: 절차적으로(platforms를 자동 생성) 플랫폼을 만듭니다.
+        // 이렇게 하면 개발 중에 맵이 없어도 플레이할 수 있습니다.
         const marginFromRight = 120;
         const finishWidth = 80;
         const finishHeight = 18;
@@ -87,7 +94,7 @@
         const finishY = Math.max(20, Math.round(worldHeight * 0.08));
         this.finish = { x: finishX, y: finishY, width: finishWidth, height: finishHeight };
 
-        // Create ascending "stair" platforms that lead to the finish area
+        // 결승으로 이어지는 계단 모양의 플랫폼들을 만듭니다.
         const steps = 8;
         const stairStartX = Math.max(startPlatformX + 300, finishX - 800);
         for (let i = 0; i < steps; i++) {
@@ -96,7 +103,7 @@
           this.platforms.push({ x: sx, y: sy, width: 100, height: 10 });
         }
 
-        // Add a few fixed floating obstacles earlier in the level
+        // 초반에 고정된 떠 있는 장애물(플로팅 플랫폼)을 몇 개 추가합니다.
         const floats = [
           { x: 600, y: Math.max(80, worldHeight - 180), width: 120, height: 10 },
           { x: 1100, y: Math.max(60, worldHeight - 260), width: 140, height: 10 },
@@ -111,8 +118,10 @@
       return { startPlatformY, startPlatformX, worldWidth, worldHeight };
     },
 
-    // draw platforms to ctx. `offsetX` is subtracted from platform world-x to render camera
-    // draw platforms to ctx. `offsetX`/`offsetY` are subtracted from platform world coords to render camera
+    // drawPlatforms(ctx, offsetX=0, offsetY=0)
+    // - ctx: 캔버스 2D 컨텍스트
+    // - offsetX/offsetY: 카메라(뷰포트) 위치를 빼서 화면에 맞게 그리기 위해 사용합니다.
+    //   예: 화면 왼쪽이 월드 x=100이라면 offsetX=100을 빼서 그립니다.
     drawPlatforms(ctx, offsetX = 0, offsetY = 0) {
       if (!ctx) return;
       ctx.fillStyle = 'green';
@@ -136,8 +145,10 @@
         } catch (e) { /* ignore drawing errors */ }
       }
     },
-    // Check collision between a player and platforms using the player's inner collision rect
-    // Returns true if player is grounded after resolution.
+    // checkCollision(player)
+    // - 플레이어의 내부 충돌 사각형(rect)을 사용해 플랫폼과 충돌을 검사합니다.
+    // - 착지(landing)를 감지하면 플레이어의 y와 ySpeed를 조정해 땅 위에 붙게 합니다.
+    // - 반환값: 착지하여 grounded가 된 경우 true
     checkCollision(player) {
       if (!player) return false;
       // If player provides getCollisionRect, use it. Otherwise use centered inner rect based on player box.
@@ -163,35 +174,31 @@
         if (rect.x + rect.width <= p.x || rect.x >= p.x + p.width) continue;
 
         const rectBottom = rect.y + rect.height;
-        // estimate previous frame bottom using current ySpeed (simple Euler approximation)
+        // 이전 프레임의 바닥 위치를 간단히 추정합니다 (현재 ySpeed를 이용한 오일러 근사).
+        // 이 값으로 '플레이어가 이전 프레임에는 플랫폼 위에 있었는지'를 판단합니다.
         const prevBottom = rectBottom - (player.ySpeed || 0);
 
-        // Landing detection: player was above (or touching) the platform previous frame
-        // and now is at or below the platform top. Also only consider when moving downwards.
+        // 착지 판정: (1) 아래로 이동 중이고 (2) 이전 프레임 바닥이 플랫폼 위였거나 같고
+        // 현재 바닥은 플랫폼의 높이보다 아래(또는 같음)인 경우 착지로 처리합니다.
         if ((player.ySpeed || 0) >= 0 && prevBottom <= p.y && rectBottom >= p.y) {
-          // Align player's vertical position so that the inner rect bottom sits on platform.y
-          const offsetY = rect.y - player.y; // distance from player.y to inner rect.y
+          // 플레이어의 실제 y를 조정해서 내부 충돌 박스의 아래가 플랫폼 y에 딱 맞게 합니다.
+          const offsetY = rect.y - player.y; // 플레이어 상자(y)와 내부 충돌 상자(rect.y) 차이
           player.y = p.y - offsetY - rect.height;
-          player.ySpeed = 0;
+          player.ySpeed = 0; // 착지하면 수직 속도 0
           player.grounded = true;
           return true;
         }
 
-        // Optional: handle head bump (player moving up into underside of platform)
-        // If player is moving upwards and inner rect top is below platform bottom, push player down a bit
-        if ((player.ySpeed || 0) < 0 && rect.y <= p.y + p.height && rect.y + rect.height > p.y + p.height) {
-          // resolve upward collision by placing player just below the platform bottom
-          const offsetY = rect.y - player.y;
-          player.y = (p.y + p.height) - offsetY + 1; // +1 to avoid immediate re-collision
-          player.ySpeed = 0;
-          return false;
-        }
+        // NOTE: head-bump handling (player hitting underside of a platform)
+        // was intentionally removed to prevent the player being pushed down
+        // when contacting the underside of a platform while moving upwards.
       }
       return false;
     }
     ,
 
-    // Check whether the player's collision rect overlaps the finish area
+    // checkFinish(player)
+    // - 플레이어의 내부 충돌 상자가 결승 영역(finish)과 겹치는지 검사합니다.
     checkFinish(player) {
       if (!player || !this.finish) return false;
       let rect = null;

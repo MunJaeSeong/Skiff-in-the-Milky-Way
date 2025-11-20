@@ -3,10 +3,12 @@
   'use strict';
 
   /**
-   * Stage4 Minimap Module
-   * - Renders a small overlay canvas which shows a local window of the world
-   *   centered on the player (not necessarily the entire map).
-   * - The minimap draws nearby platforms and the finish marker (if visible).
+   * Stage4 미니맵(지도) 모듈
+   *
+   * 쉬운 설명(중학생용):
+   * - 게임 화면 위에 작게 보이는 보조 지도를 만듭니다. 이 지도는 플레이어를 중심으로
+   *   주변 구역만 보여주며 전체 맵을 항상 보여주지는 않습니다.
+   * - 미니맵에는 가까운 플랫폼과 결승 마커를 그립니다(보이는 범위 내에 있을 때).
    */
   const Stage4Map = {
     canvas: null,
@@ -18,7 +20,9 @@
     pollInterval: null,
     running: false,
 
-    // Wait until required modules (player & ground) are available
+    // 필요한 다른 모듈(플레이어와 땅)이 준비될 때까지 기다리는 함수
+    // 왜 필요한가? 미니맵은 플레이어와 플랫폼 정보를 사용하기 때문에
+    // 두 모듈이 로드될 때까지 초기화를 늦춰야 안전합니다.
     waitForModules(timeoutMs = 3000) {
       return new Promise((resolve, reject) => {
         const start = Date.now();
@@ -38,7 +42,7 @@
       const gameCanvas = document.getElementById('gameCanvas');
       if (!gameCanvas) return;
 
-      // create overlay canvas
+      // 오버레이 캔버스 생성: 게임 캔버스 위에 겹쳐서 표시되는 작은 캔버스
       const map = document.createElement('canvas');
       map.className = 'stage4-minimap';
       // style via inline to ensure proper placement
@@ -58,18 +62,23 @@
       parent.appendChild(map);
 
       this.canvas = map;
+      // 디스플레이의 픽셀 밀도(devicePixelRatio)를 고려해서 실제 버퍼 크기를 조정합니다.
+      // 이렇게 하면 고해상도(예: 레티나) 디스플레이에서도 미니맵이 흐릿해지지 않습니다.
       this.deviceRatio = window.devicePixelRatio || 1;
-      // set actual pixel buffer size for crisp rendering
+      // 실제 캔버스 픽셀 크기 설정(논리적 CSS 픽셀 수 * deviceRatio)
       this.canvas.width = Math.max(1, Math.round(this.width * this.deviceRatio));
       this.canvas.height = Math.max(1, Math.round(this.height * this.deviceRatio));
+      // CSS에서 보이는 크기는 원래 지정한 mw x mh로 유지합니다.
       this.canvas.style.width = this.width + 'px';
       this.canvas.style.height = this.height + 'px';
       this.ctx = this.canvas.getContext('2d');
+      // 컨텍스트 좌표계를 deviceRatio에 맞춰서 스케일을 조정합니다.
       if (this.deviceRatio !== 1) this.ctx.setTransform(this.deviceRatio, 0, 0, this.deviceRatio, 0, 0);
 
       this.startLoop();
     },
 
+    // 애니메이션 루프 시작: requestAnimationFrame으로 draw를 계속 호출합니다.
     startLoop() {
       if (this.running) return;
       this.running = true;
@@ -109,11 +118,13 @@
       ctx.lineWidth = 1;
       ctx.strokeRect(0.5, 0.5, mw - 1, mh - 1);
 
-      // Choose a local world window centered on the player (minimap doesn't need to show the whole map)
+      // 미니맵에 보여줄 '월드 창(window)'을 선택합니다. 미니맵은 전체 맵 대신
+      // 플레이어 주변의 작은 영역을 보여주는 것이 목적이므로 플레이어를 중심으로 합니다.
       const playerModule = window.Stage4Player;
       const p = playerModule && playerModule.player ? playerModule.player : null;
       // window size in world coords: show at least 4x the visible screen area (but no larger than the world)
-      // this gives the player a broader situational view while keeping the minimap focused.
+      // (중학생 설명) 보이는 화면보다 넓은 영역을 보여줘 주변 상황을 더 잘 파악하게 합니다.
+      // 단, 전체 월드보다 커지지 않게 제한합니다.
       const viewWorldW = Math.min(gw, Math.max(Math.round(gameCanvas.width * 4), Math.round(gameCanvas.width * 1.6)));
       const viewWorldH = Math.min(gh, Math.max(Math.round(gameCanvas.height * 4), Math.max(64, Math.round(gameCanvas.height * 0.35))));
 
@@ -124,11 +135,11 @@
         viewY = Math.round(Math.max(0, Math.min(gh - viewWorldH, p.y - Math.round(viewWorldH / 2))));
       }
 
-      // scale factors from the chosen world window -> minimap
+      // 선택한 월드 창(window)에서 미니맵으로 변환하기 위한 스케일 비율
       const scaleX = mw / viewWorldW;
       const scaleY = mh / viewWorldH;
 
-      // draw platforms that intersect the chosen window
+      // 선택된 창과 겹치는 플랫폼들만 그립니다(성능 향상을 위해).
       const ground = window.Stage4Ground;
       if (ground && Array.isArray(ground.platforms)) {
         ctx.fillStyle = '#2ecc71';
@@ -140,7 +151,7 @@
           const rh = Math.max(1, pl.height * scaleY);
           ctx.fillRect(rx, ry, rw, rh);
         });
-        // draw finish marker if within the window
+        // 창 안에 결승(finish)이 있으면 결승 마커를 그립니다.
         if (ground.finish) {
           try {
             const f = ground.finish;
@@ -158,7 +169,7 @@
         }
       }
 
-      // draw player as a dot in the minimap window
+      // 플레이어를 작은 점(원)으로 표시합니다.
       if (p) {
         const cx = (p.x + p.width / 2 - viewX) * scaleX;
         const cy = (p.y + p.height / 2 - viewY) * scaleY;
@@ -168,7 +179,8 @@
         ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
       }
 
-      // Optionally draw a small frame representing the chosen window inside the minimap (already whole minimap shows the window)
+      // 필요하면 미니맵 안에 현재 선택된 창의 테두리를 그릴 수 있습니다.
+      // (지금은 전체 미니맵이 이미 선택된 창을 보여주므로 별도 프레임을 그리지 않습니다.)
     }
   };
 
