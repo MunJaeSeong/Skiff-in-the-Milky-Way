@@ -181,9 +181,19 @@
         rect = { x, y, width: w, height: h };
       }
 
+      // remember previous grounded state so we can avoid dropping when
+      // the player's internal collision rect shifts (e.g. when lying down).
+      const wasGrounded = !!player.grounded;
       player.grounded = false;
       for (let i = 0; i < this.platforms.length; i++) {
         const p = this.platforms[i];
+        // If player recently did a lying+jump and marked a platform to pass through,
+        // skip collision with that specific platform while the countdown is active.
+        try {
+          if (player && typeof player.passThroughCountdown === 'number' && player.passThroughCountdown > 0 && player.passThroughPlatformY != null && player.passThroughPlatformY === p.y) {
+            continue;
+          }
+        } catch (e) { /* ignore */ }
         // quick AABB horizontal check
         if (rect.x + rect.width <= p.x || rect.x >= p.x + p.width) continue;
 
@@ -194,7 +204,14 @@
 
         // 착지 판정: (1) 아래로 이동 중이고 (2) 이전 프레임 바닥이 플랫폼 위였거나 같고
         // 현재 바닥은 플랫폼의 높이보다 아래(또는 같음)인 경우 착지로 처리합니다.
-        if ((player.ySpeed || 0) >= 0 && prevBottom <= p.y && rectBottom >= p.y) {
+        // Landing detection: normally require the previous bottom to be at-or-above
+        // the platform top and the current bottom below-or-equal the platform top.
+        // Additionally, if the player was already grounded the previous frame but
+        // the internal collision rect moved slightly (e.g. when entering lying
+        // state), allow a small tolerance so the player doesn't unintentionally
+        // fall through platforms when merely crouching.
+        const tolerance = 4; // pixels of tolerance for small rect shifts
+        if ((player.ySpeed || 0) >= 0 && ((prevBottom <= p.y && rectBottom >= p.y) || (wasGrounded && Math.abs(rectBottom - p.y) <= tolerance))) {
           // 플레이어의 실제 y를 조정해서 내부 충돌 박스의 아래가 플랫폼 y에 딱 맞게 합니다.
           const offsetY = rect.y - player.y; // 플레이어 상자(y)와 내부 충돌 상자(rect.y) 차이
           player.y = p.y - offsetY - rect.height;

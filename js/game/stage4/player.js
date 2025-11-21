@@ -66,8 +66,18 @@
 			// gravity/jumpPower are computed using config during init/configure
 			jumpPower: -10,
 			gravity: 0.4,
-			grounded: false
+			grounded: false,
+			// pass-through platform support: when >0, ground collision with the
+			// platform at `passThroughPlatformY` will be ignored. Counted down
+			// each frame by `updateMovement`.
+			passThroughCountdown: 0,
+			passThroughPlatformY: null
 		},
+
+		// lie-down state and images
+		isLying: false,
+		lieRightImg: null,
+		lieLeftImg: null,
 
 		/**
 		 * 플레이어 초기화 함수
@@ -98,6 +108,9 @@
 			// 아틀라스는 `assets/character/<이름>/move/` 폴더에서 찾습니다.
 			this.sprites = { runLeft: {}, runRight: {}, stopLeft: {}, stopRight: {} };
 			this.hasSprites = false;
+			this.lieRightImg = null;
+			this.lieLeftImg = null;
+			this.hasLieImages = false;
 			try {
 				// 폴더 이름과 파일 이름은 캐릭터 이름의 첫 글자가 대문자입니다. 예: 'Noel'
 				const folderName = this.selectedCharacter.charAt(0).toUpperCase() + this.selectedCharacter.slice(1).toLowerCase();
@@ -151,6 +164,35 @@
 					atlasImg.src = atlasSrc;
 					this.sprites[key].atlas = null;
 				});
+				// lie-down images: try loading from move subfolder first, then fall back to character root
+				try {
+					const lieRight = new Image();
+					const lieLeft = new Image();
+					let tried = 0;
+					const tryPaths = [
+						`${base}${folderName}_liedown_right.png`,
+						`assets/character/${folderName}/${folderName}_liedown_right.png`
+					];
+					const tryPathsLeft = [
+						`${base}${folderName}_liedown_left.png`,
+						`assets/character/${folderName}/${folderName}_liedown_left.png`
+					];
+
+					lieRight.onload = () => { this.lieRightImg = lieRight; this.hasLieImages = true; };
+					lieLeft.onload = () => { this.lieLeftImg = lieLeft; this.hasLieImages = true; };
+
+					lieRight.onerror = () => {
+						// if first path failed, try fallback
+						if (tried === 0) { tried = 1; lieRight.src = tryPaths[1]; }
+					};
+					lieLeft.onerror = () => {
+						if (tried === 0) { tried = 1; lieLeft.src = tryPathsLeft[1]; }
+					};
+
+					// start by trying move/ path
+					lieRight.src = tryPaths[0];
+					lieLeft.src = tryPathsLeft[0];
+				} catch (e) { /* ignore */ }
 			} catch (e) { /* ignore */ }
 
 
@@ -172,8 +214,16 @@
 			// 가로 이동 처리
 			let moving = false;
 			const speed = (typeof this.moveSpeed === 'number') ? this.moveSpeed : 3;
+			// lie-down: if ArrowDown is held, enter lying state and disallow horizontal movement
+			if (keys['ArrowDown']) {
+				this.isLying = true;
+				p.xSpeed = 0;
+				// don't allow left/right movement while lying
+			} else {
+				this.isLying = false;
 				if (keys['ArrowLeft']) { p.x -= speed; p.xSpeed = -speed; this.facing = 'left'; moving = true; }
 				if (keys['ArrowRight']) { p.x += speed; p.xSpeed = speed; this.facing = 'right'; moving = true; }
+			}
 			this.isMoving = moving;
 
 			// 플레이어가 화면(또는 월드) 좌우 밖으로 나가지 않도록 위치를 제한합니다.
@@ -191,17 +241,43 @@
 				if (typeof maxX === 'number') p.x = Math.min(maxX, Math.max(0, p.x));
 			} catch (e) { /* ignore in weird environments */ }
 
+			// decrement pass-through countdown (if active)
+			try {
+				if (typeof p.passThroughCountdown === 'number' && p.passThroughCountdown > 0) {
+					p.passThroughCountdown -= 1;
+					if (p.passThroughCountdown <= 0) p.passThroughPlatformY = null;
+				}
+			} catch (e) { /* ignore */ }
+
 			// 수직 물리 계산(중력 적용과 y 속도 통합)
 			p.ySpeed += p.gravity;
 			p.y += p.ySpeed;
-			if (p.grounded && keys[' ']) {
+
+			// If player is lying and presses jump while grounded, request a pass-through
+			// for the platform directly below instead of performing a normal jump.
+			if (this.isLying && keys[' '] && p.grounded) {
+				let rect = null;
+				try { rect = this.getCollisionRect(); } catch (e) { rect = null; }
+				// determine platform Y as bottom of collision rect (where player stands)
+				const platformY = rect ? (rect.y + rect.height) : (p.y + p.height);
+				p.passThroughPlatformY = platformY;
+				// frames to ignore that platform (tune as needed)
+				p.passThroughCountdown = 12;
+				p.grounded = false;
+				// small nudge so physics places player below the platform next frame
+				p.y += 1;
+			} else if (p.grounded && keys[' ']) {
 				p.ySpeed = p.jumpPower;
 				p.grounded = false;
 			}
 
 			// 걷는지/멈춤 여부와 바라보는 방향에 따라 사용할 스프라이트 키를 선택합니다.
 			// 선택된 키는 그리기 함수에서 알맞은 아틀라스를 결정하는 데 사용됩니다.
-			this.currentKey = this.isMoving ? (this.facing === 'left' ? 'runLeft' : 'runRight') : (this.facing === 'left' ? 'stopLeft' : 'stopRight');
+			if (this.isLying) {
+				this.currentKey = this.facing === 'left' ? 'liedownLeft' : 'liedownRight';
+			} else {
+				this.currentKey = this.isMoving ? (this.facing === 'left' ? 'runLeft' : 'runRight') : (this.facing === 'left' ? 'stopLeft' : 'stopRight');
+			}
 		},
 
 		// 게임 루프에서 땅에 닿았는지를 외부에서 설정할 수 있는 헬퍼 함수
@@ -219,6 +295,7 @@
 			let drawH = p.height;
 			let dx = p.x;
 			let dy = p.y;
+			const lieScale = 0.7;
 			try {
 				if (sprite.atlas && sprite.atlas.complete) {
 					const frameW = sprite.atlasFrameW || 1;
@@ -235,17 +312,35 @@
 					}
 					dx = p.x + Math.round((p.width - drawW) / 2);
 					dy = p.y + Math.round((p.height - drawH) / 2);
+					// apply lying scale if applicable
+					if (this.isLying) {
+						drawW = Math.max(1, Math.round(drawW * lieScale));
+						drawH = Math.max(1, Math.round(drawH * lieScale));
+						dx = p.x + Math.round((p.width - drawW) / 2);
+						// reduce bottom gap to half: put image higher so bottom gap = (p.height - drawH)/4
+						dy = p.y + Math.round((p.height - drawH) * 3 / 4);
+					}
 				}
 			} catch (e) { /* fall back to full box */ }
 			// 내부 충돌 상자 크기 규칙:
 			// - 너비는 그려진 너비의 2/5
 			// - 높이는 그려진 높이의 4/5
 			// - 그리고 중앙에 위치시킵니다.
-			const innerW = Math.max(1, Math.round(drawW * 2 / 5));
-			const innerH = Math.max(1, Math.round(drawH * 4 / 5));
-			const innerX = dx + Math.round((drawW - innerW) / 2);
-			const innerY = dy + Math.round((drawH - innerH) / 2);
-			return { x: innerX, y: innerY, width: innerW, height: innerH };
+			if (this.isLying) {
+				// Lying collision: width = 4/5 of player, height = 1/5 of player, bottom-aligned
+				const innerW = Math.max(1, Math.round(p.width * 2 / 3));
+				const innerH = Math.max(1, Math.round(p.height * 1 / 5));
+				const innerX = p.x + Math.round((p.width - innerW) / 2);
+				// lift the lying collision box slightly (0.1 * player height)
+				const innerY = p.y + p.height - innerH - Math.round(p.height * 0.1);
+				return { x: innerX, y: innerY, width: innerW, height: innerH };
+			} else {
+				const innerW = Math.max(1, Math.round(drawW * 2 / 5));
+				const innerH = Math.max(1, Math.round(drawH * 4 / 5));
+				const innerX = dx + Math.round((drawW - innerW) / 2);
+				const innerY = dy + Math.round((drawH - innerH) / 2);
+				return { x: innerX, y: innerY, width: innerW, height: innerH };
+			}
 		},
 
 		// 캔버스에 플레이어를 그리는 함수
@@ -256,6 +351,51 @@
 			// pick sprite data for currentKey
 			const key = this.currentKey || 'stopRight';
 			const sprite = this.sprites[key] || {};
+			// If lying, draw lie-down image if available
+			if (this.isLying) {
+				const img = (this.facing === 'left') ? this.lieLeftImg : this.lieRightImg;
+				if (img && img.complete) {
+					try {
+						// scale the lie image to fit player box while preserving aspect
+						const iw = img.width || 1;
+						const ih = img.height || 1;
+						const ratio = iw / ih;
+						let drawW = p.width, drawH = p.height;
+						if (p.width / p.height > ratio) { drawH = p.height; drawW = Math.round(drawH * ratio); }
+						else { drawW = p.width; drawH = Math.round(drawW / ratio); }
+
+						// apply lie-down scale
+						const lieScale = 0.7;
+						if (this.isLying) {
+							drawW = Math.max(1, Math.round(drawW * lieScale));
+							drawH = Math.max(1, Math.round(drawH * lieScale));
+						}
+						const dx = p.x + Math.round((p.width - drawW) / 2) - offsetX;
+						// reduce bottom gap to half when lying: move image up so bottom gap = (p.height - drawH)/4
+						const dy = this.isLying ? (p.y + Math.round((p.height - drawH) * 3 / 4) - offsetY) : (p.y + Math.round((p.height - drawH) / 2) - offsetY);
+						ctx.drawImage(img, 0, 0, iw, ih, dx, dy, drawW, drawH);
+						// draw outlines and inner rect as usual
+						ctx.save();
+						ctx.strokeStyle = 'green'; ctx.lineWidth = 2;
+						ctx.strokeRect(Math.round(p.x - offsetX), Math.round(p.y - offsetY), p.width, p.height);
+						if (this.isLying) {
+							const innerW = Math.max(1, Math.round(p.width * 2 / 3));
+							const innerH = Math.max(1, Math.round(p.height * 1 / 5));
+							const innerX = Math.round(p.x - offsetX) + Math.round((p.width - innerW) / 2);
+							const innerY = Math.round(p.y - offsetY) + (p.height - innerH) - Math.round(p.height * 0.1);
+							ctx.strokeStyle = 'red'; ctx.lineWidth = 2; ctx.strokeRect(innerX, innerY, innerW, innerH);
+						} else {
+							const innerW = Math.max(1, Math.round(drawW * 2 / 5));
+							const innerH = Math.max(1, Math.round(drawH * 4 / 5));
+							const innerX = dx + Math.round((drawW - innerW) / 2);
+							const innerY = dy + Math.round((drawH - innerH) / 2);
+							ctx.strokeStyle = 'red'; ctx.lineWidth = 2; ctx.strokeRect(innerX, innerY, innerW, innerH);
+						}
+						ctx.restore();
+						return;
+					} catch (e) { /* fall through to fallback drawing */ }
+				}
+			}
 			// 아틀라스가 있으면 아틀라스 방식으로 그립니다(우선 사용).
 			if (sprite.atlas && sprite.atlas.complete) {
 				try {
@@ -282,7 +422,7 @@
 						drawH = Math.round(drawW / ratio);
 					}
 						const dx = p.x + Math.round((p.width - drawW) / 2) - offsetX;
-						const dy = p.y + Math.round((p.height - drawH) / 2) - offsetY;
+						const dy = this.isLying ? (p.y + Math.round((p.height - drawH) * 3 / 4) - offsetY) : (p.y + Math.round((p.height - drawH) / 2) - offsetY);
 						ctx.drawImage(atlas, sx, sy, frameW, frameH, dx, dy, drawW, drawH);
 					// 플레이어 전체 상자에 초록색 외곽선을 그립니다(디버그용으로 보임).
 					try {
@@ -291,13 +431,23 @@
 						ctx.lineWidth = 2;
 							ctx.strokeRect(Math.round(p.x - offsetX), Math.round(p.y - offsetY), p.width, p.height);
 						// 내부 충돌 상자(빨간색)를 그림 안에 맞춰서 그립니다.
-						const innerW = Math.max(1, Math.round(drawW * 2 / 5));
-						const innerH = Math.max(1, Math.round(drawH * 4 / 5));
+						if (this.isLying) {
+							const innerW = Math.max(1, Math.round(p.width * 4 / 5));
+							const innerH = Math.max(1, Math.round(p.height * 1 / 5));
+							const innerX = Math.round(p.x - offsetX) + Math.round((p.width - innerW) / 2);
+							const innerY = Math.round(p.y - offsetY) + (p.height - innerH) - Math.round(p.height * 0.1);
+							ctx.strokeStyle = 'red';
+							ctx.lineWidth = 2;
+							ctx.strokeRect(innerX, innerY, innerW, innerH);
+						} else {
+							const innerW = Math.max(1, Math.round(drawW * 2 / 5));
+							const innerH = Math.max(1, Math.round(drawH * 4 / 5));
 							const innerX = dx + Math.round((drawW - innerW) / 2);
-						const innerY = dy + Math.round((drawH - innerH) / 2);
-						ctx.strokeStyle = 'red';
-						ctx.lineWidth = 2;
-						ctx.strokeRect(innerX, innerY, innerW, innerH);
+							const innerY = dy + Math.round((drawH - innerH) / 2);
+							ctx.strokeStyle = 'red';
+							ctx.lineWidth = 2;
+							ctx.strokeRect(innerX, innerY, innerW, innerH);
+						}
 						ctx.restore();
 					} catch (e) { /* ignore drawing errors */ }
 					return;
@@ -305,7 +455,18 @@
 			}
 			// 아틀라스 이미지가 없을 때의 간단한 대체 그리기(파란 사각형)
 				ctx.fillStyle = 'blue';
-				ctx.fillRect(Math.round(p.x - offsetX), Math.round(p.y - offsetY), p.width, p.height);
+				// if lying, draw a scaled blue rect centered in the player box
+				if (this.isLying) {
+					const lieScale = 0.7;
+					const drawW = Math.max(1, Math.round(p.width * lieScale));
+					const drawH = Math.max(1, Math.round(p.height * lieScale));
+					const dx = Math.round(p.x + Math.round((p.width - drawW) / 2) - offsetX);
+					// reduce bottom gap to half when lying for fallback rect
+					const dy = Math.round(p.y + Math.round((p.height - drawH) * 3 / 4) - offsetY);
+					ctx.fillRect(dx, dy, drawW, drawH);
+				} else {
+					ctx.fillRect(Math.round(p.x - offsetX), Math.round(p.y - offsetY), p.width, p.height);
+				}
 			// 대체 그리기일 때도 같은 방식으로 외곽선과 내부 충돌 상자를 그립니다.
 			try {
 				ctx.save();
@@ -313,13 +474,24 @@
 				ctx.lineWidth = 2;
 					ctx.strokeRect(Math.round(p.x - offsetX), Math.round(p.y - offsetY), p.width, p.height);
 				// (대체) 플레이어 상자 안에 내부 충돌 상자(빨강)를 그립니다.
-				const innerW = Math.max(1, Math.round(p.width * 2 / 5));
-				const innerH = Math.max(1, Math.round(p.height * 4 / 5));
+				if (this.isLying) {
+					// fallback inner rect for lying: match collision box (4/5 width, 1/5 height), bottom-aligned
+					const innerW = Math.max(1, Math.round(p.width * 4 / 5));
+					const innerH = Math.max(1, Math.round(p.height * 1 / 5));
 					const innerX = Math.round(p.x - offsetX) + Math.round((p.width - innerW) / 2);
-					const innerY = Math.round(p.y - offsetY) + Math.round((p.height - innerH) / 2);
-				ctx.strokeStyle = 'red';
-				ctx.lineWidth = 2;
-				ctx.strokeRect(innerX, innerY, innerW, innerH);
+					const innerY = Math.round(p.y - offsetY) + (p.height - innerH) - Math.round(p.height * 0.1);
+					ctx.strokeStyle = 'red';
+					ctx.lineWidth = 2;
+					ctx.strokeRect(innerX, innerY, innerW, innerH);
+				} else {
+					const innerW = Math.max(1, Math.round(p.width * 2 / 5));
+					const innerH = Math.max(1, Math.round(p.height * 4 / 5));
+						const innerX = Math.round(p.x - offsetX) + Math.round((p.width - innerW) / 2);
+						const innerY = Math.round(p.y - offsetY) + Math.round((p.height - innerH) / 2);
+					ctx.strokeStyle = 'red';
+					ctx.lineWidth = 2;
+					ctx.strokeRect(innerX, innerY, innerW, innerH);
+				}
 				ctx.restore();
 			} catch (e) { /* ignore drawing errors */ }
 		}

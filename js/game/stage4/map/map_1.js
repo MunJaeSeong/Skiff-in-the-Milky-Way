@@ -28,26 +28,41 @@
     // x : 위치 yPercent : 캔버스 높이의 백분율(0으로 갈수록 천장) width : 너비 height : 높이
     platforms: [
       // 1단계 : 점프맵 (초반의 짧은 발판들) — 절대 좌표(px)
-      { x: 340, y: 2328, width: 120, height: 15 },
-      { x: 768, y: 2328, width: 120, height: 15 },
-      { x: 768, y: 2232, width: 120, height: 15 },
-      { x: 896, y: 2232, width: 120, height: 15 },
-
-      // 계단 모양으로 올라가는 발판들 (결승선 방향으로 이어집니다) — 절대 좌표(px)
-      { x: 1200, y: 1680, width: 100, height: 10 },
-      { x: 1300, y: 1536, width: 100, height: 10 },
-      { x: 1400, y: 1392, width: 100, height: 10 },
-      { x: 1500, y: 1248, width: 100, height: 10 },
-      { x: 1600, y: 1104, width: 100, height: 10 },
-      { x: 1700, y: 960, width: 100, height: 10 },
-      { x: 1800, y: 816, width: 100, height: 10 },
-      { x: 1900, y: 672, width: 100, height: 10 }
+      { x: 400, y: 2300, width: 100, height: 20 },
+      { x: 700, y: 2200, width: 100, height: 20 },
+      { x: 700, y: 2100, width: 100, height: 20 },
+      { x: 900, y: 2000, width: 100, height: 20 },
+      { x: 1200, y: 1900, width: 100, height: 20 },
+      { x: 1200, y: 1800, width: 100, height: 20 },
+      { x: 1300, y: 1700, width: 100, height: 20 },
+      { x: 1600, y: 2200, width: 100, height: 20 },
+      { x: 1800, y: 2100, width: 100, height: 20 },
+      { x: 2000, y: 2000, width: 100, height: 20 },
+      { x: 2200, y: 1900, width: 100, height: 20 },
+      { x: 2400, y: 1800, width: 100, height: 20 },
+      { x: 2600, y: 1700, width: 100, height: 20 },
+      { x: 2800, y: 1600, width: 100, height: 20 },
+      { x: 3000, y: 1500, width: 100, height: 20 },
+      { x: 3200, y: 1400, width: 100, height: 20 },
+      { x: 3400, y: 1300, width: 100, height: 20 },
+      { x: 3600, y: 1200, width: 100, height: 20 },
+      { x: 3800, y: 1100, width: 100, height: 20 },
+      { x: 4000, y: 1000, width: 100, height: 20 },
+      { x: 4200, y: 900, width: 100, height: 20 },
+      { x: 4400, y: 800, width: 100, height: 20 },
+      { x: 4600, y: 700, width: 100, height: 20 },
+      { x: 4800, y: 600, width: 100, height: 20 },
+      { x: 5000, y: 500, width: 100, height: 20 },
+      { x: 5200, y: 400, width: 100, height: 20 },
+      { x: 5400, y: 300, width: 100, height: 20 },
+      { x: 5600, y: 200, width: 100, height: 20 },
+      { x: 5800, y: 100, width: 300, height: 20 }
     ],
 
     // 결승 구역: 퍼센트로 오른쪽 상단 근처에 위치시킵니다.
     finish: {
-      x: 6080,
-      y: 192,
+      x: 6000,  //6000
+      y: 100, // 100
       width: 80,
       height: 18
     }
