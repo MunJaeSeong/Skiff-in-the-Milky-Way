@@ -1,7 +1,5 @@
 // ========================================
-// Platformer Jump 게임 JavaScript 코드 (stage4)
-// This file is a corrected copy of the existing `gameScirpt.js` (typo) so
-// the dynamic loader that expects `gameScript.js` will find and run it.
+// 플랫폼 점프 게임 JavaScript 코드 (stage4)
 // ========================================
 
 (function () {
@@ -9,8 +7,7 @@
 
   /**
    * Stage4 게임 루프 / 장면 제어기
-   *
-   * 쉬운 설명(중학생용):
+   * 설명:
    * - 게임 화면을 그릴 캔버스와 필요한 모듈(플레이어, 땅)을 준비합니다.
    * - 매 프레임마다 `update` 함수를 호출해 게임 상태를 계산하고 그립니다.
    * - 화면은 전체 '월드'의 일부(뷰포트)만 보여줍니다. cameraX/cameraY는
@@ -18,7 +15,7 @@
    */
   function init() {
     const canvas = document.getElementById('gameCanvas');
-    if (!canvas) {
+    if (!canvas) {  // 캔버스 존재 확인(존재하지 않을 시 초기화 중단)
       console.warn('stage4 gameScript: canvas #gameCanvas not found. Aborting init.');
       return;
     }
@@ -26,31 +23,31 @@
 
     // 플레이어는 `player.js`에서 관리합니다.
     // 플레이어 모듈이 없으면 게임을 시작할 수 없으므로 초기화를 멈추고
-    // 에러 메시지를 출력합니다. (중학생 설명: 플레이어가 없으면 게임이 안 됩니다.)
-    const playerModule = window.Stage4Player;
+    // 에러 메시지를 출력합니다.
+    const playerModule = window.Stage4Player; // 플레이어 모듈
     if (!playerModule || !playerModule.player) {
       const msg = 'Stage4 error: player module not found. Ensure js/game/stage4/player.js is loaded before gameScript.js.';
       console.error(msg);
       try { alert(msg); } catch (e) {}
       return; // abort init
     }
-    const player = playerModule.player;
+    const player = playerModule.player; // 플레이어 객체
 
-    // 플랫폼은 `ground.js` 모듈에서 관리합니다. Require it and abort if missing.
-    const groundModule = window.Stage4Ground;
+    // 플랫폼은 `ground.js` 모듈에서 관리합니다. 모듈이 없으면 초기화를 중단합니다.
+    const groundModule = window.Stage4Ground; // 지면(플랫폼) 모듈
     if (!groundModule || !Array.isArray(groundModule.platforms) || typeof groundModule.init !== 'function') {
       const msg = 'Stage4 error: ground module not found. Ensure js/game/stage4/ground.js is loaded before gameScript.js.';
       console.error(msg);
       try { alert(msg); } catch (e) {}
       return; // abort init
     }
-    let platforms = groundModule.platforms;
+    let platforms = groundModule.platforms; // 플랫폼 배열
 
     // 게임 시간 관리
     let startTime = Date.now();
     let elapsedTime = 0;
 
-    // 키 입력 처리 (keeps set of pressed keys and forwards to player module)
+    // 키 입력 처리 (누른 키 상태를 기록하고 플레이어 모듈로 전달합니다)
     let keys = {};
     document.addEventListener('keydown', e => keys[e.key] = true);
     document.addEventListener('keyup', e => keys[e.key] = false);
@@ -68,29 +65,28 @@
     const verticalScale = 10; // 월드를 화면 높이의 10배로 만듭니다.
     const worldHeight = Math.max(240, Math.round(canvas.height * verticalScale));
 
-    // initialize platforms via ground module (world is wider now). Pass worldHeight so
-    // ground generation and map loading use the world coordinate space.
+    // 지면(플랫폼) 초기화: ground 모듈을 통해 플랫폼을 초기화합니다.
+    // 월드가 더 넓어졌으므로 `worldHeight`를 전달해 지면 생성과 맵 로딩이
+    // 월드 좌표계를 사용하도록 합니다.
     const info = groundModule.init(canvas, { startPlatformX, startPlatformWidth, startPlatformHeight, worldScale: 8, worldHeight });
     platforms = groundModule.platforms;
-    // let player module place the player on the start platform (pass start X)
+    // 플레이어 모듈이 시작 플랫폼 위에 플레이어를 배치하도록 합니다. (시작 X 전달)
     if (typeof playerModule.init === 'function') {
       playerModule.init(info.startPlatformY, info.startPlatformX);
     }
 
-    // world and camera state
-    const worldWidth = info.worldWidth || canvas.width;
-    // prefer provided worldHeight or fallback to canvas.height
-    const worldH = typeof info.worldHeight === 'number' ? info.worldHeight : canvas.height;
-    let cameraX = 0; // world coordinate of left edge of screen
-    let cameraY = 0; // world coordinate of top edge of screen (vertical camera)
-
-    // No additional random platforms for stage4; ground module provides base platform(s).
-
+    // 월드 그리고 카메라 상태
+    // groundModule이 노출하는 실제 월드 크기를 우선 사용합니다 (맵 파일에서 정의 가능).
+    const worldWidth = (groundModule && typeof groundModule.worldWidth === 'number') ? groundModule.worldWidth : (info.worldWidth || canvas.width);
+    // 제공된 worldHeight를 사용하거나 canvas.height로 대체합니다. groundModule 우선.
+    const worldH = (groundModule && typeof groundModule.worldHeight === 'number') ? groundModule.worldHeight : (typeof info.worldHeight === 'number' ? info.worldHeight : canvas.height);
+    let cameraX = 0; // 월드 좌표에서 화면 왼쪽 가장자리 위치 (수평 카메라)
+    let cameraY = 0; // 월드 좌표에서 화면 위쪽 가장자리 위치 (수직 카메라)
+    
     // 그리기: 플레이어 그리기 함수
     // offsetX: 수평 카메라 오프셋(월드 좌표를 화면으로 옮기기 위해 뺄 값)
     function drawPlayer(offsetX) {
       // 가능한 경우 플레이어 모듈이 제공하는 그리기 함수를 사용합니다.
-      // (모듈에 애니메이션/스프라이트 로직이 포함되어 있으면 더 예쁘게 그려집니다.)
       if (playerModule && typeof playerModule.draw === 'function') {
         try { playerModule.draw(ctx, offsetX, cameraY); return; } catch (e) { /* 실패하면 아래 대체 렌더링 */ }
       }
@@ -99,6 +95,7 @@
       ctx.fillRect(Math.round(player.x - offsetX), Math.round(player.y - cameraY), player.width, player.height);
     }
 
+    // 그리기: 플랫폼 그리기 함수
     function drawPlatforms(offsetX) {
       if (groundModule && typeof groundModule.drawPlatforms === 'function') {
         groundModule.drawPlatforms(ctx, offsetX, cameraY);
@@ -108,6 +105,7 @@
       platforms.forEach(p => ctx.fillRect(Math.round(p.x - offsetX), Math.round(p.y - cameraY), p.width, p.height));
     }
 
+    // 그리기: 시간 표시 함수(구현 x 사용예정)
     function drawTime() {
       ctx.fillStyle = 'black';
       ctx.font = '16px Arial';
@@ -136,6 +134,7 @@
       }
     }
 
+    // 플랫폼 충돌 검사 및 처리
     function checkPlatformCollision() {
       if (groundModule && typeof groundModule.checkCollision === 'function') {
         return groundModule.checkCollision(player);
@@ -156,18 +155,22 @@
       });
       return player.grounded;
     }
-
-    function checkGameOver() {
-      // 플레이어가 월드 바닥(worldH) 아래로 떨어지면 게임 오버로 처리합니다.
+ 
+    // 오류 검사 (이전 이름: checkGameOver)
+    // 기능은 기존과 동일: 플레이어가 월드 바닥(worldH) 아래로 떨어지면 true를 반환합니다.
+    // 다만 사용자에게 보여주는 메시지를 '예상치 못한 버그가 발생했다'로 바꿉니다.
+    function checkError() {
+      // 플레이어가 월드 바닥(worldH) 아래로 떨어지면 오류(종료)로 처리합니다.
       // worldH는 월드 좌표의 높이이며, 없으면 캔버스 높이를 대신 사용합니다.
       const bottom = typeof worldH === 'number' ? worldH : canvas.height;
       if (player.y > bottom) {
-        alert('Game Over! 생존 시간: ' + elapsedTime + '초');
+        alert('예상치 못한 버그가 발생했습니다. 생존 시간: ' + elapsedTime + '초');
         return true;
       }
       return false;
     }
 
+    // 메인 게임 루프: 매 프레임마다 호출됩니다.
     function update() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       updatePlayerMovement();
@@ -194,8 +197,8 @@
       const desiredCameraY = Math.round(player.y - anchorY);
       cameraY = Math.max(0, Math.min(maxCameraY, desiredCameraY));
       elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
-      if (checkGameOver()) return;
-      // draw in world coordinates but offset by cameraX and cameraY
+      if (checkError()) return;
+      // 월드 좌표로 그리되 카메라 오프셋(cameraX, cameraY)을 빼서 화면에 맞춥니다.
       drawPlatforms(cameraX);
       drawPlayer(cameraX);
       drawTime();

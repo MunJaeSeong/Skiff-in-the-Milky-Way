@@ -1,48 +1,62 @@
-// Stage4 ground module: handles platform creation, drawing and collisions
+// Stage4 땅 모듈: 플랫폼 생성, 그리기 및 충돌 처리를 담당합니다
 (function () {
   'use strict';
 
   /**
    * Stage4 땅(플랫폼) 모듈
    *
-   * 쉬운 설명(중학생용):
+   * 설명:
    * - 이 모듈은 게임 레벨의 '땅'과 플랫폼을 만들고 그리며, 충돌을 검사합니다.
    * - 외부 맵 파일(window.Stage4Maps)을 읽어 플랫폼을 만들 수 있고,
    *   맵이 없으면 코드가 자동으로 플랫폼을 만들어 냅니다(절차적 생성).
    * - `worldHeight`는 화면(캔버스) 높이와 별개로 월드 전체의 높이를 뜻합니다.
    *   즉, 보이는 창보다 훨씬 큰 월드를 만들 수 있고 카메라가 그 일부만 보여줍니다.
    */
+
+  // 땅(플랫폼) 모듈 객체
   const Stage4Ground = {
     platforms: [],
     finish: null,
     worldWidth: null,
 
-    // Initialize world/platforms. Supports larger world width via `worldScale` (default 8).
-    // opts: { floorHeight, worldScale, startPlatformX, startPlatformWidth, startPlatformHeight }
+    // 월드/플랫폼 초기화
+    // - `worldScale`을 사용하면 월드를 더 넓게 만들 수 있습니다(기본값: 8).
+    // - opts 예: { floorHeight, worldScale, startPlatformX, startPlatformWidth, startPlatformHeight }
     init(canvas, opts = {}) {
       const floorHeight = typeof opts.floorHeight === 'number' ? opts.floorHeight : 10;
       const worldScale = typeof opts.worldScale === 'number' ? Math.max(1, opts.worldScale) : 8;
-      const startPlatformX = typeof opts.startPlatformX === 'number' ? opts.startPlatformX : 0;
-      const startPlatformWidth = typeof opts.startPlatformWidth === 'number' ? opts.startPlatformWidth : 100;
-      const startPlatformHeight = typeof opts.startPlatformHeight === 'number' ? opts.startPlatformHeight : floorHeight;
-
-      // The visible canvas width remains `canvas.width`, but the world extends horizontally by worldScale.
-      const worldWidth = Math.max(1, Math.round(canvas.width * worldScale));
-      // allow caller to provide a separate worldHeight (world may be taller than visible canvas)
-      const worldHeight = (typeof opts.worldHeight === 'number') ? Math.max(canvas.height, Math.round(opts.worldHeight)) : canvas.height;
-      const floorY = worldHeight - floorHeight;
-      const startPlatformY = worldHeight - startPlatformHeight;
-
-      // Base ground (floor) spans the entire world width
-      this.platforms = [{ x: 0, y: floorY, width: worldWidth, height: floorHeight }];
-
-      // Add a start platform at the requested X (useful for spawning the player)
-      this.platforms.push({ x: startPlatformX, y: startPlatformY, width: startPlatformWidth, height: startPlatformHeight });
-
-      // Try to load platforms from a map file if available (map name from opts.mapName or 'map_1')
+      let startPlatformX = typeof opts.startPlatformX === 'number' ? opts.startPlatformX : 0;
+      let startPlatformWidth = typeof opts.startPlatformWidth === 'number' ? opts.startPlatformWidth : 100;
+      let startPlatformHeight = typeof opts.startPlatformHeight === 'number' ? opts.startPlatformHeight : floorHeight;
+      // 기본: 보이는 캔버스 너비(`canvas.width`)를 worldScale로 확장하여 월드를 만듭니다.
+      // 다만 맵 파일(mapData)이 `worldWidth`/`worldHeight`를 명시하면 그 값을 우선합니다.
+      // 맵 이름 가져오기 (맵 파일이 있으면 플랫폼을 거기서 불러옵니다; opts.mapName 또는 'map_1' 사용)
       const mapName = typeof opts.mapName === 'string' ? opts.mapName : 'map_1';
       const maps = (typeof window !== 'undefined' && window.Stage4Maps) ? window.Stage4Maps : null;
       const mapData = maps && maps[mapName] ? maps[mapName] : null;
+
+      // 기본 world 계산 (옵션으로 전달된 값 또는 캔버스 기반 계산)
+      let worldWidth = Math.max(1, Math.round(canvas.width * worldScale));
+      let worldHeight = (typeof opts.worldHeight === 'number') ? Math.max(canvas.height, Math.round(opts.worldHeight)) : canvas.height;
+      // 맵 파일에 명시된 월드 크기가 있으면 우선 사용합니다.
+      if (mapData) {
+        if (typeof mapData.worldWidth === 'number' && mapData.worldWidth > 0) {
+          worldWidth = Math.max(1, Math.round(mapData.worldWidth));
+        }
+        if (typeof mapData.worldHeight === 'number' && mapData.worldHeight > 0) {
+          worldHeight = Math.max(canvas.height, Math.round(mapData.worldHeight));
+        }
+      }
+
+      // world에 맞춘 기본 바닥 및 시작 플랫폼의 Y 좌표 계산
+      const floorY = worldHeight - floorHeight;
+      const startPlatformY = worldHeight - startPlatformHeight;
+
+      // 기본 바닥 플랫폼 생성: 월드 전체 너비에 걸쳐 있습니다.
+      this.platforms = [{ x: 0, y: floorY, width: worldWidth, height: floorHeight }];
+
+      // 시작 플랫폼 추가: 요청된 X 위치에 생성됩니다. (플레이어 스폰에 유용)
+      this.platforms.push({ x: startPlatformX, y: startPlatformY, width: startPlatformWidth, height: startPlatformHeight });
 
       if (mapData && Array.isArray(mapData.platforms)) {
           // 만약 맵(mapData)이 시작 발판 정보를 제공하면, 함수 호출자(opts)에서

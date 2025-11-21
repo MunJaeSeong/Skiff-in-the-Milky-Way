@@ -19,9 +19,9 @@
 		// 아래 제공하는 헬퍼 셋터로 변경할 수 있습니다.
 		config: {
 			baseHeight: 60,           // 물리값 스케일링에 사용되는 기준 높이
-			baseJumpMag: 8,          // 기준 점프 세기(양수)
-			baseGravity: 0.4,         // 기준 중력 값
-			gravityMultiplier: 1.3,   // 중력 배수(중력을 강하게/약하게 조절)
+			baseJumpMag: 4,          // 기준 점프 세기(양수)
+			baseGravity: 0.2,         // 기준 중력 값
+			gravityMultiplier: 1.5,   // 중력 배수(중력을 강하게/약하게 조절)
 			baseMoveSpeed: 4,         // 기준 수평 이동 속도
 			moveSpeedMultiplier: 2    // 수평 속도에 곱할 배수
 		},
@@ -108,7 +108,6 @@
 					stopLeft: `${folderName}_stop_left`,
 					stopRight: `${folderName}_stop_right`
 				};
-				let loadedCount = 0;
 				Object.keys(names).forEach(key => {
 					// 아틀라스 PNG만 불러옵니다. GIF 대체 로드는 사용하지 않습니다.
 					const atlasSrc = base + names[key] + '_atlas.png';
@@ -116,7 +115,6 @@
 					atlasImg.onload = () => {
 						// 아틀라스(한 장 이미지)에 들어 있는 프레임 배열을 계산합니다.
 						// 가로/세로 칸 수를 정해 각 프레임의 픽셀 크기를 계산합니다.
-						function gcd(a,b){ return b===0? a : gcd(b, a%b); }
 						const w = atlasImg.width, h = atlasImg.height;
 						// 이 게임은 28프레임을 사용하도록 되어 있습니다. 아틀라스 비율에 맞게
 						// 가로x세로 조합을 골라 프레임 수를 맞춥니다.
@@ -145,7 +143,6 @@
 						this.sprites[key].atlasRows = rows;
 						this.sprites[key].atlasFrameW = frameW;
 						this.sprites[key].atlasFrameH = frameH;
-						loadedCount++;
 						this.hasSprites = true; // at least one atlas loaded
 					};
 					atlasImg.onerror = () => {
@@ -175,8 +172,8 @@
 			// 가로 이동 처리
 			let moving = false;
 			const speed = (typeof this.moveSpeed === 'number') ? this.moveSpeed : 3;
-			if (keys['ArrowLeft']) { p.x -= speed; p.xSpeed = -speed; p.ySpeed = p.ySpeed; this.facing = 'left'; moving = true; }
-			if (keys['ArrowRight']) { p.x += speed; p.xSpeed = speed; p.ySpeed = p.ySpeed; this.facing = 'right'; moving = true; }
+				if (keys['ArrowLeft']) { p.x -= speed; p.xSpeed = -speed; this.facing = 'left'; moving = true; }
+				if (keys['ArrowRight']) { p.x += speed; p.xSpeed = speed; this.facing = 'right'; moving = true; }
 			this.isMoving = moving;
 
 			// 플레이어가 화면(또는 월드) 좌우 밖으로 나가지 않도록 위치를 제한합니다.
