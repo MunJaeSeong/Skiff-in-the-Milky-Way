@@ -58,17 +58,17 @@
     const startPlatformWidth = 100;
     const startPlatformHeight = 10;
 
-    // 게임 월드(레벨)의 세로 길이를 늘려서 더 높이 올라가는 스테이지를 만듭니다.
-    // 설명: 보이는 캔버스 높이를 바꾸지 않고 내부적으로 더 큰 '월드'를 만들어
-    // 플레이어가 위아래로 더 많이 움직이게 할 수 있습니다.
-    // verticalScale이 클수록 월드는 더 높아집니다. (예: 10이면 캔버스 높이의 10배)
-    const verticalScale = 10; // 월드를 화면 높이의 10배로 만듭니다.
-    const worldHeight = Math.max(240, Math.round(canvas.height * verticalScale));
+    // 중앙 설정: 월드 크기 기본값을 한곳에서 정의합니다.
+    // 다른 모듈(ground, maps)은 이 값을 참조하도록 변경했습니다.
+    const DEFAULT_WORLD_WIDTH = 6400;
+    const DEFAULT_WORLD_HEIGHT = 8000;
+    // expose global defaults for other modules if needed
+    try { window.Stage4WorldDefaults = { worldWidth: DEFAULT_WORLD_WIDTH, worldHeight: DEFAULT_WORLD_HEIGHT }; } catch (e) { /* ignore */ }
 
     // 지면(플랫폼) 초기화: ground 모듈을 통해 플랫폼을 초기화합니다.
     // 월드가 더 넓어졌으므로 `worldHeight`를 전달해 지면 생성과 맵 로딩이
     // 월드 좌표계를 사용하도록 합니다.
-    const info = groundModule.init(canvas, { startPlatformX, startPlatformWidth, startPlatformHeight, worldScale: 8, worldHeight });
+    const info = groundModule.init(canvas, { startPlatformX, startPlatformWidth, startPlatformHeight, worldWidth: DEFAULT_WORLD_WIDTH, worldHeight: DEFAULT_WORLD_HEIGHT });
     platforms = groundModule.platforms;
     // 플레이어 모듈이 시작 플랫폼 위에 플레이어를 배치하도록 합니다. (시작 X 전달)
     if (typeof playerModule.init === 'function') {
@@ -156,9 +156,8 @@
       return player.grounded;
     }
  
-    // 오류 검사 (이전 이름: checkGameOver)
-    // 기능은 기존과 동일: 플레이어가 월드 바닥(worldH) 아래로 떨어지면 true를 반환합니다.
-    // 다만 사용자에게 보여주는 메시지를 '예상치 못한 버그가 발생했다'로 바꿉니다.
+    // 오류 검사 (이전 이름: checkError)
+    // 기능: 플레이어가 월드 바닥(worldH) 아래로 떨어지면 true를 반환합니다. --true 시 사용자에게 오류를 알림
     function checkError() {
       // 플레이어가 월드 바닥(worldH) 아래로 떨어지면 오류(종료)로 처리합니다.
       // worldH는 월드 좌표의 높이이며, 없으면 캔버스 높이를 대신 사용합니다.

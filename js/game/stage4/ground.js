@@ -15,6 +15,7 @@
 
   // 땅(플랫폼) 모듈 객체
   const Stage4Ground = {
+    ground : [],
     platforms: [],
     finish: null,
     worldWidth: null,
@@ -23,29 +24,33 @@
     // - `worldScale`을 사용하면 월드를 더 넓게 만들 수 있습니다(기본값: 8).
     // - opts 예: { floorHeight, worldScale, startPlatformX, startPlatformWidth, startPlatformHeight }
     init(canvas, opts = {}) {
-      const floorHeight = typeof opts.floorHeight === 'number' ? opts.floorHeight : 10;
-      const worldScale = typeof opts.worldScale === 'number' ? Math.max(1, opts.worldScale) : 8;
-      let startPlatformX = typeof opts.startPlatformX === 'number' ? opts.startPlatformX : 0;
-      let startPlatformWidth = typeof opts.startPlatformWidth === 'number' ? opts.startPlatformWidth : 100;
-      let startPlatformHeight = typeof opts.startPlatformHeight === 'number' ? opts.startPlatformHeight : floorHeight;
-      // 기본: 보이는 캔버스 너비(`canvas.width`)를 worldScale로 확장하여 월드를 만듭니다.
-      // 다만 맵 파일(mapData)이 `worldWidth`/`worldHeight`를 명시하면 그 값을 우선합니다.
+      const floorHeight = typeof opts.floorHeight === 'number' ? opts.floorHeight : 10; // 기본 바닥 높이
+      let startPlatformX = typeof opts.startPlatformX === 'number' ? opts.startPlatformX : 0; // 시작 플랫폼 X 위치
+      let startPlatformWidth = typeof opts.startPlatformWidth === 'number' ? opts.startPlatformWidth : 100; // 시작 플랫폼 너비
+      let startPlatformHeight = typeof opts.startPlatformHeight === 'number' ? opts.startPlatformHeight : floorHeight; // 시작 플랫폼 높이
+      // 맵 파일(mapData)이 `worldWidth`/`worldHeight`를 명시하면 그 값을 우선합니다.
       // 맵 이름 가져오기 (맵 파일이 있으면 플랫폼을 거기서 불러옵니다; opts.mapName 또는 'map_1' 사용)
       const mapName = typeof opts.mapName === 'string' ? opts.mapName : 'map_1';
-      const maps = (typeof window !== 'undefined' && window.Stage4Maps) ? window.Stage4Maps : null;
-      const mapData = maps && maps[mapName] ? maps[mapName] : null;
+      const mapData = (window.Stage4Maps && window.Stage4Maps[mapName]) ? window.Stage4Maps[mapName] : null;
 
-      // 기본 world 계산 (옵션으로 전달된 값 또는 캔버스 기반 계산)
-      let worldWidth = Math.max(1, Math.round(canvas.width * worldScale));
-      let worldHeight = (typeof opts.worldHeight === 'number') ? Math.max(canvas.height, Math.round(opts.worldHeight)) : canvas.height;
-      // 맵 파일에 명시된 월드 크기가 있으면 우선 사용합니다.
-      if (mapData) {
-        if (typeof mapData.worldWidth === 'number' && mapData.worldWidth > 0) {
-          worldWidth = Math.max(1, Math.round(mapData.worldWidth));
-        }
-        if (typeof mapData.worldHeight === 'number' && mapData.worldHeight > 0) {
-          worldHeight = Math.max(canvas.height, Math.round(mapData.worldHeight));
-        }
+      // 기본 world 계산: 우선 opts에서 전달된 값(또는 전역 기본값)을 사용하고,
+      // 없으면 기존 캔버스 기반 폴백을 사용합니다.
+      let worldWidth;
+      if (typeof opts.worldWidth === 'number') {
+        worldWidth = Math.max(1, Math.round(opts.worldWidth));
+      } else if (window.Stage4WorldDefaults && typeof window.Stage4WorldDefaults.worldWidth === 'number') {
+        worldWidth = Math.max(1, Math.round(window.Stage4WorldDefaults.worldWidth));
+      } else {
+        worldWidth = Math.max(6400, Math.round(canvas.width * 8));
+      }
+
+      let worldHeight;
+      if (typeof opts.worldHeight === 'number') {
+        worldHeight = Math.max(canvas.height, Math.round(opts.worldHeight));
+      } else if (window.Stage4WorldDefaults && typeof window.Stage4WorldDefaults.worldHeight === 'number') {
+        worldHeight = Math.max(canvas.height, Math.round(window.Stage4WorldDefaults.worldHeight));
+      } else {
+        worldHeight = Math.max(8000, Math.round(canvas.height * 8));
       }
 
       // world에 맞춘 기본 바닥 및 시작 플랫폼의 Y 좌표 계산
@@ -53,80 +58,55 @@
       const startPlatformY = worldHeight - startPlatformHeight;
 
       // 기본 바닥 플랫폼 생성: 월드 전체 너비에 걸쳐 있습니다.
-      this.platforms = [{ x: 0, y: floorY, width: worldWidth, height: floorHeight }];
+      this.ground = [
+        { x: 0, y: floorY, width: worldWidth, height: floorHeight },
+        { x: 0, y: (floorY - 2400), width: worldWidth, height: floorHeight },
+        { x: 0, y: (floorY - 4800), width: worldWidth, height: floorHeight },  
+      ];
 
       // 시작 플랫폼 추가: 요청된 X 위치에 생성됩니다. (플레이어 스폰에 유용)
       this.platforms.push({ x: startPlatformX, y: startPlatformY, width: startPlatformWidth, height: startPlatformHeight });
-
+      // 맵 파일에서 플랫폼 불러오기
       if (mapData && Array.isArray(mapData.platforms)) {
           // 만약 맵(mapData)이 시작 발판 정보를 제공하면, 함수 호출자(opts)에서
           // 전달한 값보다 맵의 값으로 우선 덮어씁니다. (맵에 맞춰 플레이어 시작 위치를 조정)
           if (mapData.startPlatform && typeof mapData.startPlatform === 'object'){
-            try{
-              if (typeof mapData.startPlatform.x === 'number') startPlatformX = mapData.startPlatform.x;
-              if (typeof mapData.startPlatform.width === 'number') startPlatformWidth = mapData.startPlatform.width;
-              if (typeof mapData.startPlatform.height === 'number') startPlatformHeight = mapData.startPlatform.height;
-              // 이미 넣어둔 시작 플랫폼 항목을 맵 정보로 덮어씁니다.
-              this.platforms[this.platforms.length - 1] = { x: startPlatformX, y: startPlatformY, width: startPlatformWidth, height: startPlatformHeight };
-            }catch(e){ /* startPlatform 형식이 잘못되면 무시 */ }
+            if (typeof mapData.startPlatform.x === 'number') startPlatformX = mapData.startPlatform.x;
+            if (typeof mapData.startPlatform.width === 'number') startPlatformWidth = mapData.startPlatform.width;
+            if (typeof mapData.startPlatform.height === 'number') startPlatformHeight = mapData.startPlatform.height;
+            // 이미 넣어둔 시작 플랫폼 항목을 맵 정보로 덮어씁니다.
+            this.platforms[this.platforms.length - 1] = { x: startPlatformX, y: startPlatformY, width: startPlatformWidth, height: startPlatformHeight };
         }
-          // 맵에 있는 플랫폼 항목을 순회하여, 퍼센트 좌표(xPercent/yPercent)가 있으면
-          // 월드 크기에 맞춰 픽셀 단위로 계산합니다. (절대 좌표 x/y도 허용)
+          // 맵에 있는 플랫폼 항목을 순회하여 월드 크기에 맞춰 픽셀 단위로 계산합니다. (절대 좌표만 허용)
           // 이렇게 하면 같은 맵이 다른 해상도/월드 크기에서 비슷하게 보입니다.
         mapData.platforms.forEach(p => {
-          // Allow platforms to be specified in absolute coords (`x`/`y`) or as percents (`xPercent`/`yPercent`).
-          const platform = { x: 0, width: p.width || 100, height: p.height || 10 };
-          // X: prefer xPercent when provided so maps can be resolution-independent
-          if (typeof p.xPercent === 'number') platform.x = Math.round(worldWidth * p.xPercent);
-          else platform.x = (typeof p.x === 'number') ? p.x : 0;
-          // Y: percent relative to worldHeight if provided, else absolute y or fallback
-          if (typeof p.yPercent === 'number') platform.y = Math.round(worldHeight * p.yPercent);
-          else platform.y = (typeof p.y === 'number') ? p.y : Math.max(40, startPlatformY - 80);
-          // 플랫폼이 월드 범위 안에 있으면 목록에 추가합니다.
-          // 오른쪽 끝에 딱 맞닿는 경우도 허용합니다.
+          // 절대 좌표(`x`/`y`)만 허용합니다.
+          const px = (typeof p.x === 'number') ? p.x : 0;
+          const py = (typeof p.y === 'number') ? p.y : Math.max(40, startPlatformY - 80);
+          // Mark these as map-origin platforms so pass-through is limited
+          // to only these (prevents ground from being passed-through).
+          const platform = { x: px, y: py, width: p.width || 100, height: p.height || 10, isMapPlatform: true };
+          // 플랫폼이 월드 범위 안에 있으면 목록에 추가합니다. 오른쪽 끝에 딱 맞닿는 경우도 허용합니다.
           if (platform.x + platform.width <= worldWidth) this.platforms.push(platform);
         });
 
-        // finish area if provided; supports xPercent/yPercent
+        // 맵에 결승 지점이 정의되어 있으면 설정합니다.
         if (mapData.finish) {
           const f = mapData.finish;
           let fx = (typeof f.x === 'number') ? f.x : Math.round((typeof f.xPercent === 'number' ? f.xPercent : 0.95) * worldWidth);
           let fy = (typeof f.y === 'number') ? f.y : Math.round((typeof f.yPercent === 'number' ? f.yPercent : 0.08) * worldHeight);
           const fw = f.width || 80;
           const fh = f.height || 18;
-          // clamp inside world
+          // 월드 경계를 벗어나지 않도록 조정
           fx = Math.min(Math.max(0, fx), Math.max(0, worldWidth - fw));
+          fy = Math.min(Math.max(0, fy), Math.max(0, worldHeight - fh));
           this.finish = { x: fx, y: fy, width: fw, height: fh };
         }
       } else {
-        // 맵 파일이 없을 때의 대체 동작: 절차적으로(platforms를 자동 생성) 플랫폼을 만듭니다.
-        // 이렇게 하면 개발 중에 맵이 없어도 플레이할 수 있습니다.
-        const marginFromRight = 120;
-        const finishWidth = 80;
-        const finishHeight = 18;
-        const finishX = Math.max(startPlatformX + 400, worldWidth - marginFromRight - finishWidth);
-        const finishY = Math.max(20, Math.round(worldHeight * 0.08));
-        this.finish = { x: finishX, y: finishY, width: finishWidth, height: finishHeight };
-
-        // 결승으로 이어지는 계단 모양의 플랫폼들을 만듭니다.
-        const steps = 8;
-        const stairStartX = Math.max(startPlatformX + 300, finishX - 800);
-        for (let i = 0; i < steps; i++) {
-          const sx = stairStartX + i * 100;
-          const sy = Math.max(40, startPlatformY - (i + 1) * Math.round(worldHeight / 12));
-          this.platforms.push({ x: sx, y: sy, width: 100, height: 10 });
-        }
-
-        // 초반에 고정된 떠 있는 장애물(플로팅 플랫폼)을 몇 개 추가합니다.
-        const floats = [
-          { x: 600, y: Math.max(80, worldHeight - 180), width: 120, height: 10 },
-          { x: 1100, y: Math.max(60, worldHeight - 260), width: 140, height: 10 },
-          { x: 1700, y: Math.max(80, worldHeight - 220), width: 120, height: 10 },
-          { x: 2400, y: Math.max(100, worldHeight - 300), width: 160, height: 10 }
-        ];
-        floats.forEach(fp => { if (fp.x + fp.width < worldWidth) this.platforms.push(fp); });
+        // 맵 파일이 없을 때 오류 발생
+        alert('Error: Stage4Ground.init - map data not found for map name "' + mapName + '". Using procedural generation instead.');
       }
-      // expose world dimensions for camera/minimap/player logic
+      // 캔버스/월드 크기 노출 (카메라/미니맵/플레이어 로직용)
       this.worldWidth = worldWidth;
       this.worldHeight = worldHeight;
       return { startPlatformY, startPlatformX, worldWidth, worldHeight };
@@ -138,25 +118,31 @@
     //   예: 화면 왼쪽이 월드 x=100이라면 offsetX=100을 빼서 그립니다.
     drawPlatforms(ctx, offsetX = 0, offsetY = 0) {
       if (!ctx) return;
-      ctx.fillStyle = 'green';
-      this.platforms.forEach(p => ctx.fillRect(Math.round(p.x - offsetX), Math.round(p.y - offsetY), p.width, p.height));
+      // draw ground layers first (green)
+      if (Array.isArray(this.ground)) {
+        ctx.fillStyle = 'green';
+        this.ground.forEach(p => ctx.fillRect(Math.round(p.x - offsetX), Math.round(p.y - offsetY), p.width, p.height));
+      }
+      // then draw individual platforms (blue)
+      if (Array.isArray(this.platforms)) {
+        ctx.fillStyle = 'blue';
+        this.platforms.forEach(p => ctx.fillRect(Math.round(p.x - offsetX), Math.round(p.y - offsetY), p.width, p.height));
+      }
       // draw finish marker if present
       if (this.finish) {
-        try {
-          ctx.fillStyle = '#f1c40f'; // gold
-          ctx.fillRect(Math.round(this.finish.x - offsetX), Math.round(this.finish.y - offsetY), this.finish.width, this.finish.height);
-          // small flag pole
-          ctx.fillStyle = '#bdc3c7';
-          ctx.fillRect(Math.round(this.finish.x - offsetX) + Math.round(this.finish.width / 2) - 1, Math.round(this.finish.y - offsetY) - 12, 2, 12);
-          // flag triangle
-          ctx.fillStyle = '#c0392b';
-          ctx.beginPath();
-          ctx.moveTo(Math.round(this.finish.x - offsetX) + Math.round(this.finish.width / 2) + 1, Math.round(this.finish.y - offsetY) - 12);
-          ctx.lineTo(Math.round(this.finish.x - offsetX) + Math.round(this.finish.width / 2) + 20, Math.round(this.finish.y - offsetY) - 6);
-          ctx.lineTo(Math.round(this.finish.x - offsetX) + Math.round(this.finish.width / 2) + 1, Math.round(this.finish.y - offsetY) - 2);
-          ctx.closePath();
-          ctx.fill();
-        } catch (e) { /* ignore drawing errors */ }
+        ctx.fillStyle = '#f1c40f'; // gold
+        ctx.fillRect(Math.round(this.finish.x - offsetX), Math.round(this.finish.y - offsetY), this.finish.width, this.finish.height);
+        // small flag pole
+        ctx.fillStyle = '#bdc3c7';
+        ctx.fillRect(Math.round(this.finish.x - offsetX) + Math.round(this.finish.width / 2) - 1, Math.round(this.finish.y - offsetY) - 12, 2, 12);
+        // flag triangle
+        ctx.fillStyle = '#c0392b';
+        ctx.beginPath();
+        ctx.moveTo(Math.round(this.finish.x - offsetX) + Math.round(this.finish.width / 2) + 1, Math.round(this.finish.y - offsetY) - 12);
+        ctx.lineTo(Math.round(this.finish.x - offsetX) + Math.round(this.finish.width / 2) + 20, Math.round(this.finish.y - offsetY) - 6);
+        ctx.lineTo(Math.round(this.finish.x - offsetX) + Math.round(this.finish.width / 2) + 1, Math.round(this.finish.y - offsetY) - 2);
+        ctx.closePath();
+        ctx.fill();
       }
     },
     // checkCollision(player)
@@ -167,11 +153,7 @@
       if (!player) return false;
       // If player provides getCollisionRect, use it. Otherwise use centered inner rect based on player box.
       let rect;
-      try {
-        if (typeof player.getCollisionRect === 'function') {
-          rect = player.getCollisionRect();
-        }
-      } catch (e) { rect = null; }
+      if (typeof player.getCollisionRect === 'function') rect = player.getCollisionRect();
       if (!rect) {
         // Fallback inner collision rect: width = 2/5 of draw box, height = 4/5 of draw box
         const w = Math.max(1, Math.round(player.width * 2 / 5));
@@ -185,15 +167,19 @@
       // the player's internal collision rect shifts (e.g. when lying down).
       const wasGrounded = !!player.grounded;
       player.grounded = false;
-      for (let i = 0; i < this.platforms.length; i++) {
-        const p = this.platforms[i];
+      // combine ground and platforms into a single list for collision checks
+      const allPlatforms = [];
+      if (Array.isArray(this.ground)) allPlatforms.push(...this.ground);
+      if (Array.isArray(this.platforms)) allPlatforms.push(...this.platforms);
+
+      for (let i = 0; i < allPlatforms.length; i++) {
+        const p = allPlatforms[i];
         // If player recently did a lying+jump and marked a platform to pass through,
         // skip collision with that specific platform while the countdown is active.
-        try {
-          if (player && typeof player.passThroughCountdown === 'number' && player.passThroughCountdown > 0 && player.passThroughPlatformY != null && player.passThroughPlatformY === p.y) {
-            continue;
-          }
-        } catch (e) { /* ignore */ }
+        // Only allow pass-through for platforms that came from the map file
+        // (they are tagged with `isMapPlatform`). This prevents ground or other
+        // procedural platforms from being bypassed.
+        if (player && typeof player.passThroughCountdown === 'number' && player.passThroughCountdown > 0 && player.passThroughPlatformY != null && p.isMapPlatform && player.passThroughPlatformY === p.y) continue;
         // quick AABB horizontal check
         if (rect.x + rect.width <= p.x || rect.x >= p.x + p.width) continue;
 
@@ -233,7 +219,7 @@
     checkFinish(player) {
       if (!player || !this.finish) return false;
       let rect = null;
-      try { if (typeof player.getCollisionRect === 'function') rect = player.getCollisionRect(); } catch (e) { rect = null; }
+      if (typeof player.getCollisionRect === 'function') rect = player.getCollisionRect();
       if (!rect) {
         const w = Math.max(1, Math.round(player.width * 2 / 5));
         const h = Math.max(1, Math.round(player.height * 4 / 5));

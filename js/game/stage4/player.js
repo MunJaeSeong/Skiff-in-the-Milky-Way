@@ -253,19 +253,44 @@
 			p.ySpeed += p.gravity;
 			p.y += p.ySpeed;
 
-			// If player is lying and presses jump while grounded, request a pass-through
-			// for the platform directly below instead of performing a normal jump.
+			// If player is lying and presses jump while grounded, attempt a pass-through
+			// only if the platform directly below is a map-defined platform (tagged
+			// with `isMapPlatform`). If no such platform is found, perform a normal jump.
 			if (this.isLying && keys[' '] && p.grounded) {
 				let rect = null;
 				try { rect = this.getCollisionRect(); } catch (e) { rect = null; }
-				// determine platform Y as bottom of collision rect (where player stands)
-				const platformY = rect ? (rect.y + rect.height) : (p.y + p.height);
-				p.passThroughPlatformY = platformY;
-				// frames to ignore that platform (tune as needed)
-				p.passThroughCountdown = 12;
-				p.grounded = false;
-				// small nudge so physics places player below the platform next frame
-				p.y += 1;
+				// bottom of player's collision rect (approximate foot position)
+				const footY = rect ? (rect.y + rect.height) : (p.y + p.height);
+				let chosenPlatformY = null;
+				try {
+					const gw = window.Stage4Ground;
+					if (gw) {
+						// search platforms for a map-origin platform whose top is near the footY
+						const candidates = [];
+						if (Array.isArray(gw.platforms)) candidates.push(...gw.platforms);
+						if (Array.isArray(gw.ground)) candidates.push(...gw.ground);
+						const tol = 12; // pixels tolerance for matching platform top
+						for (let i = 0; i < candidates.length; i++) {
+							const pp = candidates[i];
+							if (pp && typeof pp.y === 'number') {
+								if (Math.abs(pp.y - footY) <= tol && pp.isMapPlatform) { chosenPlatformY = pp.y; break; }
+							}
+						}
+					}
+				} catch (e) { /* ignore search errors */ }
+				if (chosenPlatformY != null) {
+					p.passThroughPlatformY = chosenPlatformY;
+					// frames to ignore that platform (tune as needed)
+					p.passThroughCountdown = 12;
+					p.grounded = false;
+					// small nudge so physics places player below the platform next frame
+					p.y += 1;
+				} else {
+					// no map platform beneath and player is lying: do NOT perform a
+					// normal jump. This prevents pass-through/normal-jump when standing
+					// on ground layers or other procedural platforms.
+					// Keep player grounded; no state change.
+				}
 			} else if (p.grounded && keys[' ']) {
 				p.ySpeed = p.jumpPower;
 				p.grounded = false;

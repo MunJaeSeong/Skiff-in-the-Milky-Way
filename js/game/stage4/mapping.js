@@ -141,9 +141,12 @@
 
       // 선택된 창과 겹치는 플랫폼들만 그립니다(성능 향상을 위해).
       const ground = window.Stage4Ground;
-      if (ground && Array.isArray(ground.platforms)) {
+      if (ground) {
         ctx.fillStyle = '#2ecc71';
-        ground.platforms.forEach(pl => {
+        const platformsToDraw = [];
+        if (Array.isArray(ground.ground)) platformsToDraw.push(...ground.ground);
+        if (Array.isArray(ground.platforms)) platformsToDraw.push(...ground.platforms);
+        platformsToDraw.forEach(pl => {
           if (pl.x + pl.width < viewX || pl.x > viewX + viewWorldW || pl.y + pl.height < viewY || pl.y > viewY + viewWorldH) return;
           const rx = (pl.x - viewX) * scaleX;
           const ry = (pl.y - viewY) * scaleY;
