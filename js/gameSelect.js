@@ -160,6 +160,45 @@
         wrapper.scrollTo({ left: offsetLeft, behavior: 'smooth' });
     }
 
+    // 마우스 휠(수직)을 수평 스크롤로 변환하여 스테이지 선택을 이동시키는 헬퍼
+    function attachWheelToStageList(){
+        const ul = document.getElementById('stageList');
+        if (!ul) return;
+        const wrapper = ul.parentElement; // assume .stage-list-wrapper
+        if (!wrapper) return;
+
+        // Handler: map vertical wheel (deltaY) to horizontal scrollLeft.
+        // User requested: wheel up -> move right, wheel down -> move left.
+        const handler = function(e){
+            try{
+                // If ctrl is pressed, allow browser zoom/zoom gestures
+                if (e.ctrlKey) return;
+
+                // Normalize delta based on deltaMode
+                let delta = e.deltaY;
+                if (e.deltaMode === 1) delta *= 16; // line -> px approx
+                else if (e.deltaMode === 2) delta *= wrapper.clientHeight; // page
+
+                // Only act when horizontal scrolling is possible
+                if (wrapper.scrollWidth <= wrapper.clientWidth) return;
+
+                // Map: wheel up (delta < 0) -> scroll right (increase scrollLeft)
+                // So we add -delta * factor to scrollLeft
+                const factor = 1.5; // tune sensitivity
+                const scrollAmount = -delta * factor;
+
+                // Prevent default vertical scroll while over the wrapper
+                e.preventDefault();
+                wrapper.scrollLeft += scrollAmount;
+            }catch(err){
+                // swallow errors to avoid breaking other UI
+            }
+        };
+
+        // Use passive: false so we can call preventDefault()
+        wrapper.addEventListener('wheel', handler, { passive: false });
+    }
+
         // --- 스크립트 동적 로드 및 스테이지 시작 도우미 ---
         // 동일한 src를 중복으로 삽입하지 않도록 검사하고 Promise를 반환합니다.
         function loadScriptOnce(src){
@@ -300,6 +339,7 @@
     // 초기화: DOMContentLoaded 후 스테이지 목록 렌더링
     document.addEventListener('DOMContentLoaded', () => {
         renderStageList('stageList');
+        try{ attachWheelToStageList(); }catch(e){}
 
         // 지역화 도우미: 활성 언어에 따라 UI 문자열을 업데이트
         function updateLocalization(){
