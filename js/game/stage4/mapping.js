@@ -101,9 +101,11 @@
       const gameCanvas = document.getElementById('gameCanvas');
       if (!gameCanvas) return;
 
-      // world dimensions: prefer ground.worldWidth if available (world may be larger than canvas)
-      const gw = (window.Stage4Ground && typeof window.Stage4Ground.worldWidth === 'number') ? window.Stage4Ground.worldWidth : gameCanvas.width;
-      const gh = (window.Stage4Ground && typeof window.Stage4Ground.worldHeight === 'number') ? window.Stage4Ground.worldHeight : gameCanvas.height;
+      // world dimensions: prefer Stage4Ground.worldWidth/worldHeight if available.
+      // If Stage4Ground doesn't specify sizes, default to the designed
+      // stage size so the minimap covers the full level: 3200 x 2400.
+      const gw = (window.Stage4Ground && typeof window.Stage4Ground.worldWidth === 'number') ? window.Stage4Ground.worldWidth : 3200;
+      const gh = (window.Stage4Ground && typeof window.Stage4Ground.worldHeight === 'number') ? window.Stage4Ground.worldHeight : 2400;
       if (!gw || !gh) return;
 
       // logical minimap size (CSS pixels)
@@ -131,8 +133,24 @@
       let viewX = 0;
       let viewY = 0;
       if (p) {
-        viewX = Math.round(Math.max(0, Math.min(gw - viewWorldW, p.x - Math.round(viewWorldW / 2))));
-        viewY = Math.round(Math.max(0, Math.min(gh - viewWorldH, p.y - Math.round(viewWorldH / 2))));
+        // Use player center so the view feels consistent
+        const px = p.x + (p.width || 0) / 2;
+        const py = p.y + (p.height || 0) / 2;
+
+        // Horizontal: keep player centered (clamped to world bounds)
+        viewX = Math.round(Math.max(0, Math.min(gw - viewWorldW, px - Math.round(viewWorldW / 2))));
+
+        // Vertical: start centered, but if the player rises above the top
+        // quarter of the current view, scroll the background so the player
+        // stays at 1/4 from the top (i.e., background moves when player
+        // goes up past that threshold).
+        let centeredY = Math.round(py - Math.round(viewWorldH / 2));
+        viewY = Math.round(Math.max(0, Math.min(gh - viewWorldH, centeredY)));
+
+        const topQuarter = viewY + Math.round(viewWorldH * 0.75);
+        if (py < topQuarter) {
+          viewY = Math.round(Math.max(0, Math.min(gh - viewWorldH, py - Math.round(viewWorldH * 0.75))));
+        }
       }
 
       // 선택한 월드 창(window)에서 미니맵으로 변환하기 위한 스케일 비율
