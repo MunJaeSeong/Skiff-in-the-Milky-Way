@@ -174,6 +174,21 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       updatePlayerMovement();
       checkPlatformCollision();
+      // update traps animation/logic
+      if (window.Stage4Traps && typeof window.Stage4Traps.update === 'function') {
+        try { window.Stage4Traps.update(player); } catch (e) { /* ignore */ }
+      }
+      // check trap collisions (some traps apply knockback, some are fatal)
+      if (groundModule && typeof groundModule.checkTrapCollision === 'function') {
+        try {
+          const trapHit = groundModule.checkTrapCollision(player);
+          if (trapHit) {
+            // fatal trap (e.g. followMonster) -> end run
+            alert('Game Over! 함정에 의해 사망했습니다.');
+            return;
+          }
+        } catch (e) { /* ignore trap check errors */ }
+      }
       // check finish condition
       if (groundModule && typeof groundModule.checkFinish === 'function') {
         try {

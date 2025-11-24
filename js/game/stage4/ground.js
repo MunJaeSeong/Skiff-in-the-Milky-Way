@@ -106,6 +106,22 @@
         // 맵 파일이 없을 때 오류 발생
         alert('Error: Stage4Ground.init - map data not found for map name "' + mapName + '". Using procedural generation instead.');
       }
+      // initialize traps if map provided traps.
+      // If the trap module isn't loaded yet, store pending traps to initialize later.
+      if (mapData && Array.isArray(mapData.traps)) {
+        if (window.Stage4Traps) {
+          try { window.Stage4Traps.init(mapData.traps, worldWidth, worldHeight); } catch (e) { /* ignore */ }
+          this.traps = window.Stage4Traps.traps || [];
+          this._pendingTraps = null;
+        } else {
+          // trap module not loaded yet — remember data for later init
+          this.traps = [];
+          this._pendingTraps = { data: mapData.traps, worldWidth, worldHeight };
+        }
+      } else {
+        this.traps = [];
+        this._pendingTraps = null;
+      }
       // 캔버스/월드 크기 노출 (카메라/미니맵/플레이어 로직용)
       this.worldWidth = worldWidth;
       this.worldHeight = worldHeight;
@@ -143,6 +159,18 @@
         ctx.lineTo(Math.round(this.finish.x - offsetX) + Math.round(this.finish.width / 2) + 1, Math.round(this.finish.y - offsetY) - 2);
         ctx.closePath();
         ctx.fill();
+      }
+      // If traps were pending (trap module loaded later), initialize now.
+      if (this._pendingTraps && window.Stage4Traps) {
+        try {
+          window.Stage4Traps.init(this._pendingTraps.data, this._pendingTraps.worldWidth, this._pendingTraps.worldHeight);
+          this.traps = window.Stage4Traps.traps || [];
+        } catch (e) { /* ignore init errors */ }
+        this._pendingTraps = null;
+      }
+      // draw traps if available
+      if (window.Stage4Traps && Array.isArray(this.traps)) {
+        try { window.Stage4Traps.draw(ctx, offsetX, offsetY); } catch (e) { /* ignore draw errors */ }
       }
     },
     // checkCollision(player)
@@ -230,6 +258,16 @@
       const f = this.finish;
       const overlap = rect.x + rect.width > f.x && rect.x < f.x + f.width && rect.y + rect.height > f.y && rect.y < f.y + f.height;
       return !!overlap;
+    }
+    ,
+
+    // trap collision guardian: returns true if player hit trap
+    checkTrapCollision(player) {
+      if (!player) return false;
+      if (window.Stage4Traps && typeof window.Stage4Traps.checkCollision === 'function') {
+        try { return !!window.Stage4Traps.checkCollision(player); } catch (e) { return false; }
+      }
+      return false;
     }
   };
 

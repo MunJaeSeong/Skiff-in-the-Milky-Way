@@ -60,6 +60,21 @@
       { x: 5800, y: 5700, width: 300, height: 20 }
     ],
 
+    // Traps: stage4에서 사용하는 함정들
+    // type: 'thorn' | 'spikePlatform' | 'slideTrap' | 'followMonster'
+    // - `thorn`: only provide `x` and `y` (width/height are fixed by trap module)
+    // - `slideTrap`: provide `pos1`, `pos2`, and `size` (square). do NOT pass width/height
+    traps: [
+      // 1) thorn: 정적 스파이크
+      { type: 'thorn', x: 500, y: 7800 },
+      // 2) spikePlatform: 플랫폼 위 스파이크(주기적으로 튀어나옴)
+      { type: 'spikePlatform', x: 1200, y: 7400, width: 100, height: 20, period: 2000, duty: 0.5 },
+      // 3) slideTrap: 지정된 두 지점을 계속 왕복
+      { type: 'slideTrap', pos1: { x: 600, y: 7800 }, pos2: { x: 1000, y: 7400 }, size: 60, speed: 3 },
+      // 4) followMonster: 플레이어를 감지하면 추적  --미구현
+      //{ type: 'followMonster', x: 4200, y: 4800, width: 36, height: 48, speed: 1.6, detectRadius: 400 }
+    ],
+
     // 결승 구역: 퍼센트로 오른쪽 상단 근처에 위치시킵니다.
     finish: {
       x: 6000,  //6000

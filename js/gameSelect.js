@@ -168,7 +168,7 @@
         if (!wrapper) return;
 
         // Handler: map vertical wheel (deltaY) to horizontal scrollLeft.
-        // User requested: wheel up -> move right, wheel down -> move left.
+        // User requested: wheel up -> move left, wheel down -> move right.
         const handler = function(e){
             try{
                 // If ctrl is pressed, allow browser zoom/zoom gestures
@@ -182,10 +182,10 @@
                 // Only act when horizontal scrolling is possible
                 if (wrapper.scrollWidth <= wrapper.clientWidth) return;
 
-                // Map: wheel up (delta < 0) -> scroll right (increase scrollLeft)
-                // So we add -delta * factor to scrollLeft
+                // Map: wheel up (delta < 0) -> scroll left (decrease scrollLeft)
+                // So we add delta * factor to scrollLeft
                 const factor = 1.5; // tune sensitivity
-                const scrollAmount = -delta * factor;
+                const scrollAmount = delta * factor;
 
                 // Prevent default vertical scroll while over the wrapper
                 e.preventDefault();
@@ -247,13 +247,17 @@
             // Build stage-specific paths from the stageId folder: js/game/<stageId>/...
             const base = `js/game/${stageId}/`;
             const playerSrc = `${base}player.js`;
+            const trapSrc = `${base}trap.js`;
             const groundSrc = `${base}ground.js`;
             const gameSrc = `${base}gameScript.js`;
 
-            // 로드 순서: player -> 게임 (game은 player가 없어도 실행되지만 Player가 필요한 경우가 있음)
-            // Load player, then ground, then game script to ensure dependencies exist
+            // 로드 순서: player -> trap (optional) -> ground -> game
+            // Load player, then trap (if present), then ground, then game script to ensure dependencies exist
             loadScriptOnce(playerSrc).catch((e)=>{
                 console.warn('player.js 로드 실패:', e);
+            }).then(()=>{
+                // try to load a trap module if it exists for the stage (silently ignore failure)
+                return loadScriptOnce(trapSrc).catch(()=> Promise.resolve());
             }).then(()=>{
                 return loadScriptOnce(groundSrc).catch((e)=>{
                     console.warn('ground.js 로드 실패:', e);

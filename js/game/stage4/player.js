@@ -211,18 +211,52 @@
 
 		updateMovement(keys) {
 			const p = this.player;
-			// 가로 이동 처리
+
+			// Handle frame-based knockback state (set by traps). When active,
+			// disable player input and apply knockback velocities for a few frames.
+			let kbActive = false;
+			if (p._knockback && typeof p._knockback.frames === 'number' && p._knockback.frames > 0) {
+				kbActive = true;
+				const kb = p._knockback;
+				// adopt current knockback velocities into player's speed so physics applies them
+				p.xSpeed = kb.vx;
+				p.ySpeed = kb.vy;
+				// move horizontally according to current speed (input movement is skipped)
+				p.x += p.xSpeed;
+				// gently apply gravity to knockback vertical velocity so player arcs naturally
+				kb.vy += (p.gravity || 0) * 0.5;
+				// damp horizontal knockback so it decays over frames
+				kb.vx *= (typeof kb.damping === 'number' ? kb.damping : 0.9);
+				// decrement frames and set invulnerability
+				kb.frames -= 1;
+				p.invulnerable = Math.max(p.invulnerable || 0, kb.invulnerable || 0);
+				if (kb.frames <= 0) {
+					p._knockback = null;
+				}
+			}
+
+			// decrement invulnerability frames if present
+			if (typeof p.invulnerable === 'number' && p.invulnerable > 0) {
+				p.invulnerable = Math.max(0, p.invulnerable - 1);
+			}
+
+			// 가로 이동 처리 (skip when knockback active)
 			let moving = false;
 			const speed = (typeof this.moveSpeed === 'number') ? this.moveSpeed : 3;
 			// lie-down: if ArrowDown is held, enter lying state and disallow horizontal movement
-			if (keys['ArrowDown']) {
-				this.isLying = true;
-				p.xSpeed = 0;
-				// don't allow left/right movement while lying
+			if (!kbActive) {
+				if (keys['ArrowDown']) {
+					this.isLying = true;
+					p.xSpeed = 0;
+					// don't allow left/right movement while lying
+				} else {
+					this.isLying = false;
+					if (keys['ArrowLeft']) { p.x -= speed; p.xSpeed = -speed; this.facing = 'left'; moving = true; }
+					if (keys['ArrowRight']) { p.x += speed; p.xSpeed = speed; this.facing = 'right'; moving = true; }
+				}
 			} else {
+				// while knockback/stun is active, prevent input-based movement
 				this.isLying = false;
-				if (keys['ArrowLeft']) { p.x -= speed; p.xSpeed = -speed; this.facing = 'left'; moving = true; }
-				if (keys['ArrowRight']) { p.x += speed; p.xSpeed = speed; this.facing = 'right'; moving = true; }
 			}
 			this.isMoving = moving;
 
