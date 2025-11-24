@@ -60,18 +60,20 @@
         prevAria: '이전 페이지',
         nextAria: '다음 페이지',
         pages: {
-          about: '설명',
-          controls: '조작키',
-          'char-rea': '레아',
-          'char-noa': '노아',
-          'char-noel': '노엘'
+          story: '스토리',
+          characters: '캐릭터',
+          stage1: '스테이지 1',
+          stage2: '스테이지 2',
+          stage3: '스테이지 3',
+          stage4: '스테이지 4'
         },
         content: {
-          about: '<ol><li>날아오는 탄막을 피해 몬스터를 처치하세요.</li><li>몬스터의 체력은 화면 상단의 흰색 막대로 표시됩니다.</li><li>플레이어의 체력은 우측 스코어 섹션의 빨간 막대로 표시됩니다.</li></ol>',
-          controls: '<ol><li>←키(방향키) -- 왼쪽으로 이동</li><li>→키(방향키) -- 오른쪽으로 이동</li><li>↑키(방향키) -- 위로 이동</li><li>↓키(방향키) -- 아래로 이동</li><li>Ctrl 키 -- 느리게 이동(속도의 절반)</li><li>Shift 키 -- 빠르게 이동(속도의 2배)</li><li>Z 키 -- 플레이어 피격 범위 확인</li></ol>',
-          'char-rea': '<h3>레아</h3><p>레아는 균형 잡힌 공격형 캐릭터로, 기본 샷의 연사력이 우수합니다. 기동성이 좋아 근거리 전투에 유리합니다.</p>',
-          'char-noa': '<h3>노아</h3><p>노아는 장거리 전투에 특화된 캐릭터로, 느리지만 강력한 발사체를 사용합니다. 전략적 위치선정이 중요합니다.</p>',
-          'char-noel': '<h3>노엘</h3><p>노엘은 특수 기능을 보유한 서포트형 캐릭터로 아군 보조 및 필드 제어에 능합니다.</p>'
+          story: '<h3>은하수 속의 조각배</h3><p>옛 전설에 따르면 은하수 저편에는 작은 조각배들이 바람을 타고 항해하며, 그 속에는 잃어버린 꿈과 기억들이 떠돌고 있다고 합니다. 어느 날, 당신의 조각배는 미지의 힘에 이끌려 네 개의 신비로운 구역으로 흩어지게 되고, 조각들을 모아 항로를 되찾아야 합니다.</p>',
+          characters: '<h3>캐릭터 소개</h3><ul><li><strong>레아</strong> — 균형형 공격 캐릭터로 연사력이 좋고 기동성이 높습니다.</li><li><strong>노아</strong> — 장거리형 캐릭터로 강력한 한 발을 발사합니다.</li><li><strong>노엘</strong> — 서포트형 캐릭터로 특수 기술로 전장을 보조합니다.</li></ul>',
+          stage1: '<h3>은하 협곡</h3><p>깊은 협곡과 날아다니는 잔해들이 가득한 구역입니다. 좁은 통로를 빠르게 통과하며 적의 탄막을 피하세요.</p>',
+          stage2: '<h3>바다의 섬</h3><p>공중에 떠 있는 섬들 사이를 항해하는 구역입니다. 플랫폼 사이의 정확한 이동이 요구됩니다.</p>',
+          stage3: '<h3>초신성 폭발</h3><p>강력한 에너지 파동이 발생하는 곳으로, 타이밍이 중요한 스테이지입니다.</p>',
+          stage4: '<h3>성운 횡단로</h3><p>아름답지만 위험한 성운 지역을 횡단합니다. 복잡한 탄막 패턴에 유의하세요.</p><h4>조작</h4><ul><li>화살표키 좌: 왼쪽 이동</li><li>화살표키 우: 오른쪽 이동</li><li>화살표키 아래: 엎드리기(대기/위기 회피)</li><li>스페이스: 점프</li><li>아래 + 스페이스: 플랫폼 밑으로 내려가기(낙하)</li></ul>'
         }
       }
     },
@@ -119,19 +121,20 @@
         prevAria: 'Previous page',
         nextAria: 'Next page',
         pages: {
-          about: 'About',
-          controls: 'Controls',
-          'char-rea': 'Rea',
-          'char-noa': 'Noa',
-          'char-noel': 'Noel'
-        }
-        ,
+          story: 'Story',
+          characters: 'Characters',
+          stage1: 'Stage 1',
+          stage2: 'Stage 2',
+          stage3: 'Stage 3',
+          stage4: 'Stage 4'
+        },
         content: {
-          about: '<ol><li>Dodge incoming bullet patterns and defeat monsters.</li><li>Enemy HP is shown as a white bar at the top of the screen.</li><li>Player HP is shown as a red bar in the right-side score area.</li></ol>',
-          controls: '<ol><li>Left Arrow -- Move left</li><li>Right Arrow -- Move right</li><li>Up Arrow -- Move up</li><li>Down Arrow -- Move down</li><li>Ctrl -- Move slowly (half speed)</li><li>Shift -- Move quickly (double speed)</li><li>Z -- Show player hitbox</li></ol>',
-          'char-rea': '<h3>Rea</h3><p>Rea is a well-balanced attacker with high rate of fire on basic shots. Good mobility makes her strong in close combat.</p>',
-          'char-noa': '<h3>Noa</h3><p>Noa specializes in long-range combat, firing slower but more powerful projectiles. Positioning is key.</p>',
-          'char-noel': '<h3>Noel</h3><p>Noel is a support-type with special abilities for assisting allies and controlling the battlefield.</p>'
+          story: '<h3>Skiff in the Milky Way</h3><p>Legends tell of small skiffs that sail the galaxy, carrying lost dreams and memories. One day your skiff is pulled apart by a mysterious force and scattered across four strange regions — you must recover the pieces and restore your course.</p>',
+          characters: '<h3>Characters</h3><ul><li><strong>Rea</strong> — A balanced attacker with high rate of fire and good mobility.</li><li><strong>Noa</strong> — A long-range specialist with powerful single shots.</li><li><strong>Noel</strong> — A support-type with abilities to assist and control the battlefield.</li></ul>',
+          stage1: '<h3>Galaxy Canyon</h3><p>A deep canyon filled with drifting debris. Navigate narrow passages and dodge enemy patterns.</p>',
+          stage2: '<h3>Island of the Sea</h3><p>Travel between floating isles — precision movement between platforms is required.</p>',
+          stage3: '<h3>Supernova Burst</h3><p>A region of intense energy waves where timing and positioning are critical.</p>',
+          stage4: '<h3>Nebula Passage</h3><p>Beautiful but hazardous nebulae with complex bullet patterns — stay alert.</p><h4>Controls</h4><ul><li>Arrow Left: Move left</li><li>Arrow Right: Move right</li><li>Arrow Down: Crouch</li><li>Space: Jump</li><li>Down + Space: Drop down through platforms</li></ul>'
         }
       }
     },
@@ -161,19 +164,20 @@
         prevAria: '前のページ',
         nextAria: '次のページ',
         pages: {
-          about: '説明',
-          controls: '操作方法',
-          'char-rea': 'レア',
-          'char-noa': 'ノア',
-          'char-noel': 'ノエル'
-        }
-        ,
+          story: 'ストーリー',
+          characters: 'キャラクター',
+          stage1: 'ステージ1',
+          stage2: 'ステージ2',
+          stage3: 'ステージ3',
+          stage4: 'ステージ4'
+        },
         content: {
-          about: '<ol><li>飛んでくる弾幕を避けてモンスターを倒してください。</li><li>モンスターの体力は画面上部の白いバーで表示されます。</li><li>プレイヤーの体力は右側のスコア領域にある赤いバーで表示されます。</li></ol>',
-          controls: '<ol><li>←キー -- 左に移動</li><li>→キー -- 右に移動</li><li>↑キー -- 上に移動</li><li>↓キー -- 下に移動</li><li>Ctrl -- ゆっくり移動（速度の半分）</li><li>Shift -- 速く移動（速度の2倍）</li><li>Z -- プレイヤーのヒットボックス表示</li></ol>',
-          'char-rea': '<h3>レア</h3><p>レアはバランスの取れた攻撃型キャラクターで、基本ショットの連射性に優れています。機動力が高く近距離戦に有利です。</p>',
-          'char-noa': '<h3>ノア</h3><p>ノアは長距離戦に特化したキャラクターで、遅いが強力な弾を使用します。戦略的な位置取りが重要です。</p>',
-          'char-noel': '<h3>ノエル</h3><p>ノエルはサポート型で特殊能力を持ち、味方支援やフィールド制御に長けています。</p>'
+          story: '<h3>銀河の小舟</h3><p>伝説によれば小さな小舟が銀河を渡り、失われた夢や記憶を運ぶと言われます。ある日、あなたの小舟は謎の力で四つの領域に散らばり、その断片を集めて航路を取り戻すことになります。</p>',
+          characters: '<h3>キャラクター紹介</h3><ul><li><strong>レア</strong> — バランス型。連射と機動力に優れます。</li><li><strong>ノア</strong> — 長距離型。強力な弾を放ちます。</li><li><strong>ノエル</strong> — サポート型。味方を補助します。</li></ul>',
+          stage1: '<h3>銀河キャニオン</h3><p>深い渓谷と漂う残骸が散在する危険なエリアです。狭い通路を正確に通過してください。</p>',
+          stage2: '<h3>海の島</h3><p>浮かぶ島々の間を進むステージです。プラットフォーム間の移動を正確に行いましょう。</p>',
+          stage3: '<h3>超新星爆発</h3><p>エネルギー波が頻発する領域です。タイミングを合わせて回避してください。</p>',
+          stage4: '<h3>星雲横断路</h3><p>美しいが危険な星雲地帯を横断します。複雑な弾幕に注意しましょう。</p><h4>操作</h4><ul><li>矢印キー 左: 左に移動</li><li>矢印キー 右: 右に移動</li><li>矢印キー 下: しゃがむ</li><li>スペース: ジャンプ</li><li>下 + スペース: 足場の下へ降りる（プラットフォーム落下）</li></ul>'
         }
       }
     }

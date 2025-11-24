@@ -165,25 +165,14 @@
       return fallback;
     }
 
-    // 기본값(설명 페이지들)
+    // 기본값(새 페이지 순서: 스토리, 캐릭터 소개, 스테이지1~4)
     const pages = [
-      { id: 'about', fallbackTitle: '설명', fallbackHtml: `<ol>
-        <li>날아오는 탄막을 피해 몬스터를 처치하세요.</li>
-        <li>몬스터의 체력은 화면 상단의 흰색 막대로 표시됩니다.</li>
-        <li>플레이어의 체력은 우측 스코어 섹션의 빨간 막대로 표시됩니다.</li>
-      </ol>` },
-      { id: 'controls', fallbackTitle: '조작키', fallbackHtml: `<ol>
-        <li>←키(방향키) -- 왼쪽으로 이동</li>
-        <li>→키(방향키) -- 오른쪽으로 이동</li>
-        <li>↑키(방향키) -- 위로 이동</li>
-        <li>↓키(방향키) -- 아래로 이동</li>
-        <li>Ctrl 키 -- 느리게 이동(속도의 절반)</li>
-        <li>Shift 키 -- 빠르게 이동(속도의 2배)</li>
-        <li>Z 키 -- 플레이어 피격 범위 확인</li>
-      </ol>` },
-      { id: 'char-rea', fallbackTitle: '캐릭터: 레아', fallbackHtml: '<h3>레아</h3><p>레아는 균형 잡힌 공격형 캐릭터로, 기본 샷의 연사력이 우수합니다. 기동성이 좋아 근거리 전투에 유리합니다.</p>' },
-      { id: 'char-noa', fallbackTitle: '캐릭터: 노아', fallbackHtml: '<h3>노아</h3><p>노아는 장거리 전투에 특화된 캐릭터로, 느리지만 강력한 발사체를 사용합니다. 전략적 위치선정이 중요합니다.</p>' },
-      { id: 'char-noel', fallbackTitle: '캐릭터: 노엘', fallbackHtml: '<h3>노엘</h3><p>노엘은 특수 기능을 보유한 서포트형 캐릭터로 아군 보조 및 필드 제어에 능합니다.</p>' }
+      { id: 'story', fallbackTitle: '스토리', fallbackHtml: `<h3>은하수 속의 조각배</h3><p>옛 전설에 따르면 은하수 저편에는 작은 조각배들이 항해하며 잃어버린 꿈들을 되찾는다고 합니다. 당신은 조각배의 조종사가 되어 흩어진 조각을 모아 항로를 되찾아야 합니다.</p>` },
+      { id: 'characters', fallbackTitle: '캐릭터', fallbackHtml: `<h3>캐릭터 소개</h3><ul><li><strong>레아</strong> — 균형형 공격 캐릭터로 연사력이 좋고 기동성이 높습니다.</li><li><strong>노아</strong> — 장거리형 캐릭터로 강력한 한 발을 발사합니다.</li><li><strong>노엘</strong> — 서포트형 캐릭터로 전장을 보조하는 능력을 가집니다.</li></ul>` },
+      { id: 'stage1', fallbackTitle: '은하 협곡', fallbackHtml: `<h3>은하 협곡</h3><p>깊은 협곡과 잔해가 날아다니는 위험한 구역입니다. 좁은 통로를 조심해서 항해하세요.</p>` },
+      { id: 'stage2', fallbackTitle: '바다의 섬', fallbackHtml: `<h3>바다의 섬</h3><p>공중에 떠 있는 섬들 사이를 항해합니다. 플랫폼 사이의 정확한 이동이 요구됩니다.</p>` },
+      { id: 'stage3', fallbackTitle: '초신성 폭발', fallbackHtml: `<h3>초신성 폭발</h3><p>에너지 파동이 빈번하게 발생하는 구역입니다. 타이밍을 잘 맞춰 회피하세요.</p>` },
+      { id: 'stage4', fallbackTitle: '성운 횡단로', fallbackHtml: `<h3>성운 횡단로</h3><p>아름다운 성운을 횡단하는 구역으로, 복잡한 탄막 패턴을 조심해야 합니다.</p><h4>조작</h4><ul><li>화살표키 좌: 왼쪽 이동</li><li>화살표키 우: 오른쪽 이동</li><li>화살표키 아래: 엎드리기(대기/위기 회피)</li><li>스페이스: 점프</li><li>아래 + 스페이스: 플랫폼 밑으로 내려가기(낙하)</li></ul>` }
     ];
 
     let currentIndex = 0;
