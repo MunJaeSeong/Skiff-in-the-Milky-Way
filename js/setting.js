@@ -49,7 +49,7 @@
       titleButton: '타이틀',
       practiceLabel: '연습모드',
       stages: {
-        stage1: '은하 협곡', stage2: '바다의 섬', stage3: '초신성 폭발', stage4: 'Coming Soon'
+        stage1: '은하 협곡', stage2: '바다의 섬', stage3: '초신성 폭발', stage4: '성운 횡단로'
       },
       custom: { title: '커스터마이징', tabChar: '캐릭터', tabShip: '조각배', tabProjectile: '발사체', customizeBtn: '커스텀마이징', myPage: '내 정보' },
       characters: { rea: '레아', noa: '노아', noel: '노엘' },
@@ -93,7 +93,7 @@
         stage1: 'Galaxy Canyon', 
         stage2: 'Island of the Sea', 
         stage3: 'Supernova Burst', 
-        stage4: 'Coming Soon'
+        stage4: 'Nebula Passage'
       },
       custom: { title: 'Customization', 
                 tabChar: 'Character', 
@@ -150,7 +150,7 @@
       titleButton: 'タイトル',
       practiceLabel: '練習モード',
       stages: {
-        stage1: '銀河キャニオン', stage2: '海の島', stage3: '超新星爆発', stage4: 'Coming Soon'
+        stage1: '銀河キャニオン', stage2: '海の島', stage3: '超新星爆発', stage4: '星雲横断路'
       },
       custom: { title: 'カスタマイズ', tabChar: 'キャラクター', tabShip: '小舟', tabProjectile: '弾', customizeBtn: 'カスタマイズ', myPage: 'マイページ' },
       characters: { rea: 'レア', noa: 'ノア', noel: 'ノエル' },

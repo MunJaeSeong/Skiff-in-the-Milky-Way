@@ -33,7 +33,7 @@
         { id: 'stage1', title: '은하 협곡', subtitle: '-개발중-', image: 'assets/stage/coming-soon.png' },
         { id: 'stage2', title: '바다의 섬', subtitle: '-개발중-', image: 'assets/stage/coming-soon.png' },
         { id: 'stage3', title: '은하 협곡', subtitle: '탄막 게임', image: 'assets/select/galaxy-canyon.png' },
-        { id: 'stage4', title: 'Coming Soon', subtitle: '-개발중-', image: 'assets/stage/coming-soon.png' }
+        { id: 'stage4', title: '성운 횡단로', subtitle: '점프 맵', image: 'assets/select/galaxy-jump.jpg' }
     ];
 
     // 스테이지 항목 하나를 생성하는 함수
@@ -49,7 +49,7 @@
 
         const thumb = document.createElement('div');
         thumb.className = 'stage-thumb';
-        // Try to use provided image if it exists; fallback color handled in CSS
+        // 제공된 이미지가 있으면 사용 시도; 없으면 CSS의 대체 색상이 적용됩니다
         if (stage.image) {
             thumb.style.backgroundImage = `url('${stage.image}')`;
         }
@@ -109,7 +109,7 @@
     function renderStageList(containerId) {
         const ul = document.getElementById(containerId);
         if (!ul) return;
-        // Clear any existing children
+        // 기존 자식 요소 모두 제거
         ul.innerHTML = '';
 
         stages.forEach((s) => {
@@ -117,7 +117,7 @@
             ul.appendChild(item);
         });
 
-        // set sizes based on viewport (each stage ~ 1/4 of viewport width)
+        // 뷰포트에 따라 크기 설정 (각 스테이지 약 뷰포트의 1/3)
         updateStageSizes();
 
         // 기본 동작: 첫 번째 스테이지를 선택하지는 않지만 UI가 가운데에 보이도록 첫 항목을 중앙에 맞춤
@@ -125,7 +125,7 @@
         const first = ul.querySelector('.stage-item');
         if (first) {
             try { centerSelected(first); } catch (e) { /* ignore */ }
-            // intentionally do NOT call selectStageElement here to avoid auto-start
+            // 자동 시작을 피하기 위해 여기서는 의도적으로 selectStageElement를 호출하지 않습니다
         }
     }
 
@@ -142,7 +142,7 @@
         ul.querySelectorAll('.stage-item').forEach((li) => {
             li.style.minWidth = width + 'px';
             li.style.width = width + 'px';
-            // keep height proportional to width (approx 0.6 ratio)
+            // 높이는 너비에 비례하게 유지합니다 (대략 0.6 비율)
             li.style.height = Math.floor(width * 0.6) + 'px';
         });
     }
@@ -155,7 +155,7 @@
         if (!wrapper) return;
         const elRect = el.getBoundingClientRect();
         const wrapRect = wrapper.getBoundingClientRect();
-        // compute current scrollLeft and required offset to center the element
+        // 현재 scrollLeft와 요소를 가운데에 맞추기 위한 오프셋 계산
         const offsetLeft = el.offsetLeft + (el.offsetWidth / 2) - (wrapper.clientWidth / 2);
         wrapper.scrollTo({ left: offsetLeft, behavior: 'smooth' });
     }
@@ -164,38 +164,38 @@
     function attachWheelToStageList(){
         const ul = document.getElementById('stageList');
         if (!ul) return;
-        const wrapper = ul.parentElement; // assume .stage-list-wrapper
+        const wrapper = ul.parentElement; // .stage-list-wrapper로 가정
         if (!wrapper) return;
 
-        // Handler: map vertical wheel (deltaY) to horizontal scrollLeft.
-        // User requested: wheel up -> move left, wheel down -> move right.
+        // 핸들러: 수직 휠(deltaY)을 가로 스크롤(scrollLeft)로 변환
+        // 사용 의도: 휠을 위로 올리면 왼쪽으로, 아래로 내리면 오른쪽으로 이동
         const handler = function(e){
             try{
-                // If ctrl is pressed, allow browser zoom/zoom gestures
+                // Ctrl 키가 눌린 경우 브라우저 줌/제스처를 허용
                 if (e.ctrlKey) return;
 
-                // Normalize delta based on deltaMode
+                // deltaMode에 따라 delta를 정규화
                 let delta = e.deltaY;
-                if (e.deltaMode === 1) delta *= 16; // line -> px approx
-                else if (e.deltaMode === 2) delta *= wrapper.clientHeight; // page
+                if (e.deltaMode === 1) delta *= 16; // 라인 단위 -> px(대략)
+                else if (e.deltaMode === 2) delta *= wrapper.clientHeight; // 페이지 단위
 
-                // Only act when horizontal scrolling is possible
+                // 가로 스크롤이 가능한 경우에만 동작
                 if (wrapper.scrollWidth <= wrapper.clientWidth) return;
 
-                // Map: wheel up (delta < 0) -> scroll left (decrease scrollLeft)
-                // So we add delta * factor to scrollLeft
-                const factor = 1.5; // tune sensitivity
+                // 휠 위 (delta < 0) -> 왼쪽으로 스크롤
+                // 이동량은 delta에 감도 계수를 곱해 사용
+                const factor = 1.5; // 감도 조정
                 const scrollAmount = delta * factor;
 
-                // Prevent default vertical scroll while over the wrapper
+                // 래퍼 위에서는 기본 세로 스크롤 동작을 막음
                 e.preventDefault();
                 wrapper.scrollLeft += scrollAmount;
             }catch(err){
-                // swallow errors to avoid breaking other UI
+                // 다른 UI가 영향을 받지 않도록 오류를 무시
             }
         };
 
-        // Use passive: false so we can call preventDefault()
+        // preventDefault()를 사용하기 위해 passive: false로 이벤트 등록
         wrapper.addEventListener('wheel', handler, { passive: false });
     }
 
@@ -204,17 +204,17 @@
         function loadScriptOnce(src){
             return new Promise((resolve, reject) => {
                 try{
-                    // Resolve the provided src to an absolute URL based on the document base
+                    // document.base를 기준으로 제공된 src를 절대 URL로 변환
                     const absolute = new URL(src, document.baseURI).href;
-                    // Find an already-inserted script that matches either the resolved href
-                    // or the original attribute value. This is more robust than simple endsWith.
+                    // 이미 삽입된 스크립트 중 절대 href 또는 원래 src 속성과 일치하는 항목을 찾습니다.
+                    // 단순 endsWith 검사보다 더 견고한 방식입니다.
                     const existing = Array.from(document.scripts).find(s => {
                         try{
                             if (!s) return false;
                             if (s.src && s.src === absolute) return true;
                             const attr = s.getAttribute && s.getAttribute('src');
                             if (attr && attr === src) return true;
-                            // fallback: check pathname match
+                            // 폴백: pathname이 같은지 비교
                             if (s.src){
                                 try{
                                     const aPath = (new URL(s.src)).pathname || '';
@@ -241,10 +241,9 @@
         // stageId에 따라 필요한 player 및 게임 런타임(gameScript.js)을 불러온 뒤 Game.startStage 호출
         function startStageById(stageId){
             if (!stageId) return;
-            // allow starting any stage (not limited to stage1)
-            // 모든 스테이지 시작을 허용 (stage1에 한정하지 않음)
+            // 모든 스테이지를 시작할 수 있도록 허용 (stage1에만 국한되지 않음)
             // 먼저 player와 게임 런타임 스크립트가 실제 폴더에서 로드되었는지 확인
-            // Build stage-specific paths from the stageId folder: js/game/<stageId>/...
+            // stageId 폴더를 기준으로 스테이지별 경로 생성: js/game/<stageId>/...
             const base = `js/game/${stageId}/`;
             const playerSrc = `${base}player.js`;
             const trapSrc = `${base}trap.js`;
@@ -252,20 +251,20 @@
             const gameSrc = `${base}gameScript.js`;
 
             // 로드 순서: player -> trap (optional) -> ground -> game
-            // Load player, then trap (if present), then ground, then game script to ensure dependencies exist
+            // player -> trap(선택) -> ground -> game 순으로 로드하여 의존성 보장
             loadScriptOnce(playerSrc).catch((e)=>{
                 console.warn('player.js 로드 실패:', e);
             }).then(()=>{
-                // try to load a trap module if it exists for the stage (silently ignore failure)
+                // 스테이지에 trap 모듈이 있으면 로드 시도(실패 시 조용히 무시)
                 return loadScriptOnce(trapSrc).catch(()=> Promise.resolve());
             }).then(()=>{
                 return loadScriptOnce(groundSrc).catch((e)=>{
                     console.warn('ground.js 로드 실패:', e);
                 });
             }).then(()=>{
-                // Try to load optional map files for the stage so ground.init can pick them up.
-                // Many maps live under `js/game/<stageId>/map/` and define `window.Stage4Maps`.
-                // Load map files first (ignore failure), then mapping.js (minimap), then the game script.
+                // ground.init이 사용할 수 있도록 스테이지의 선택적 맵 파일을 먼저 로드 시도
+                // 많은 맵 파일은 `js/game/<stageId>/map/`에 위치하며 `window.Stage4Maps`를 정의합니다.
+                // 맵 파일을 먼저(실패 시 무시), 그 다음에 mapping.js(미니맵), 마지막으로 게임 스크립트를 로드
                 const mapSrc = `${base}map/map_1.js`;
                 const mappingSrc = `${base}mapping.js`;
                 return loadScriptOnce(mapSrc).catch(()=> Promise.resolve()).then(()=>{
@@ -295,7 +294,7 @@
                         try{ window.Game.practiceMode = !!(window.StageSelect && window.StageSelect.practice); }catch(e){}
                         // 초기화 및 스테이지 시작
                         if (!window.Game.canvas) window.Game.init && window.Game.init('gameCanvas');
-                        // Attempt to ensure the stage script is loaded (stage files live under js/game/stage3/)
+                        // 스테이지 스크립트가 로드되었는지 확인 시도 (스테이지 파일은 js/game/<stageId>/에 위치)
                         const stageSrc = `${base}${stageId}.js`;
                         loadScriptOnce(stageSrc).catch(()=> Promise.resolve()).then(()=>{
                             try{ window.Game.startStage && window.Game.startStage(stageId).catch(console.error); }catch(e){console.error(e);} 
@@ -333,7 +332,7 @@
     // 크기 반응형 유지
     window.addEventListener('resize', function () {
         updateStageSizes();
-        // if there's a selected element, re-center it after resize
+        // 선택된 요소가 있으면 리사이즈 후 다시 가운데로 정렬
         const ul = document.getElementById('stageList');
         if (!ul) return;
         const sel = ul.querySelector('.stage-item[aria-selected="true"]');
@@ -361,8 +360,17 @@
                 const id = li.dataset.stageId;
                 const titleEl = li.querySelector('.stage-title');
                 if (!titleEl) return;
-                const override = (t.stages && t.stages[id]);
-                if (override) titleEl.textContent = override;
+                // t.stages에 해당 stage id 키가 존재하는지 확인하여
+                // 빈 문자열이나 falsy 값도 의도적으로 처리할 수 있게 합니다.
+                // translations 객체에 해당 키가 있으면 그 값을 사용하고,
+                // 없으면 요소 생성 시 설정된 원래 제목을 유지합니다.
+                let override;
+                if (t.stages && Object.prototype.hasOwnProperty.call(t.stages, id)) {
+                    override = t.stages[id];
+                }
+                if (typeof override !== 'undefined' && override !== null) {
+                    titleEl.textContent = override;
+                }
             });
 
             // 우측 상단 버튼 텍스트 업데이트(존재하는 경우)
@@ -377,7 +385,7 @@
                 try{
                     const input = practiceLabelEl.querySelector('input');
                     const labelText = (t.practiceLabel) || '연습모드';
-                    // clear and re-append the input so we can set the localized text
+                    // 지역화 텍스트를 설정하기 위해 입력 요소를 보존하고 텍스트를 다시 추가합니다
                     practiceLabelEl.innerHTML = '';
                     if (input) practiceLabelEl.appendChild(input);
                     practiceLabelEl.appendChild(document.createTextNode(' ' + labelText));
@@ -396,7 +404,7 @@
                 if (window.Custom && typeof window.Custom.open === 'function') {
                     window.Custom.open();
                 } else {
-                    // fallback: simple alert for now
+                    // 폴백: 현재는 간단한 alert로 대체
                     try { alert('커스터마이징 기능을 사용할 수 없습니다.'); } catch(e){}
                 }
             });
@@ -427,7 +435,7 @@
 
             // 타이틀 클릭 핸들러
             titleBtn.addEventListener('click', function(){
-                // show start screen, hide select UI and any game canvas
+                // 시작 화면을 보이고 선택 UI 및 게임 캔버스를 숨깁니다
                 const selectUI = document.getElementById('gameSelectUI');
                 const startScreen = document.getElementById('startScreen');
                 const canvasEl = document.getElementById('gameCanvas');
@@ -436,7 +444,7 @@
                 if (canvasEl) canvasEl.style.display = 'none';
                 if (selectCanvas) selectCanvas.style.display = 'none';
                 if (startScreen) { startScreen.style.display = ''; startScreen.removeAttribute('aria-hidden'); }
-                // focus primary start button if present
+                // 주요 시작 버튼이 있으면 포커스합니다
                 const btnStart = document.getElementById('btnStart');
                 if (btnStart) try{ btnStart.focus(); }catch(e){}
             });
@@ -497,11 +505,11 @@
                             // 래퍼의 왼쪽에서 12px, 아래에서 8px 떨어진 위치에 배치
                             pc.style.left = Math.max(8, Math.round(r.left + 12)) + 'px';
                             pc.style.top = Math.max(8, Math.round(r.bottom + 8)) + 'px';
-                            // ensure we clear bottom/right anchors if previously set
+                            // 이전에 설정된 아래/오른쪽 앵커가 있으면 제거합니다
                             pc.style.right = '';
                             pc.style.bottom = '';
                         } else {
-                            // fallback to bottom-left of viewport
+                            // 뷰포트 왼쪽 아래로 폴백합니다
                             pc.style.left = '12px';
                             pc.style.top = '';
                             pc.style.bottom = '12px';
@@ -512,7 +520,7 @@
                 // 초기 위치 설정 및 리사이즈 시 재정렬
                 setTimeout(position, 20);
                 window.addEventListener('resize', position);
-                // if supported, observe wrapper size changes to reposition
+                    // 지원되면 래퍼의 크기 변화를 관찰하여 위치를 재조정합니다
                 try{
                     const ul = document.getElementById('stageList');
                     const wrapper = ul ? ul.parentElement : null;
@@ -526,7 +534,7 @@
                 try{
                     const input = practice.querySelector('input[type="checkbox"]') || document.getElementById('practiceModeCheckbox');
                     if (input){
-                        // set initial state from existing StageSelect if present
+                        // 기존의 StageSelect가 있으면 해당 상태를 초기값으로 설정
                         window.StageSelect = window.StageSelect || {};
                         input.checked = !!window.StageSelect.practice;
                         input.addEventListener('change', function(){
