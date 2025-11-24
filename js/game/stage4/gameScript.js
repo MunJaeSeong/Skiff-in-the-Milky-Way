@@ -183,7 +183,7 @@
         try {
           const trapHit = groundModule.checkTrapCollision(player);
           if (trapHit) {
-            // fatal trap (e.g. followMonster) -> end run
+            // fatal trap -> end run
             alert('Game Over! 함정에 의해 사망했습니다.');
             return;
           }
