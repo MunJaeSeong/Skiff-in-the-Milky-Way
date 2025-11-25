@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+<head>
+	<meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Stage 4</title>
+	<link rel="stylesheet" href="../../css/game.css">
+    <style>html,body{height:100%;margin:0;background:#000}#gameCanvas{display:block;width:100vw;height:100vh}</style>
+    
+</head>
+<body>
+	<canvas id="gameCanvas" tabindex="0" aria-label="게임 캔버스"></canvas>
+
+	<!-- 공통 유틸/오버레이 -->
+	<script src="../util.js"></script>
+	<script src="../clear.js"></script>
+	<script src="../fail.js"></script>
+    <script src="../../js/user.js"></script>
+	<!-- 스테이지 전용 스크립트들 (모듈 먼저 로드) -->
+	<script src="player.js"></script>
+	<script src="ground.js"></script>
+	<script src="trap.js"></script>
+	<script src="map/map_1.js"></script>
+	<script src="mapping.js"></script>
+		<!-- 캔버스 크기(그리기 버퍼) 동기화: 런타임 전에 logical size를 맞춥니다 -->
+		<script>
+		(function(){
+			const c = document.getElementById('gameCanvas');
+			function fitCanvas(){
+				if (!c) return;
+				const w = Math.max(320, Math.floor(window.innerWidth));
+				const h = Math.max(240, Math.floor(window.innerHeight));
+				if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+				// keep CSS-driven visual size so layout still works
+			}
+			window.addEventListener('resize', fitCanvas);
+			if (document.readyState === 'complete' || document.readyState === 'interactive') setTimeout(fitCanvas,0);
+			else document.addEventListener('DOMContentLoaded', fitCanvas);
+		})();
+		</script>
+		<!-- 런타임: 모듈들이 준비된 뒤에 gameScript를 로드합니다 -->
+		<script src="gameScript.js"></script>
+
+	<!-- 자동 시작: 준비되면 스테이지 시작 -->
+	<script>
+	(function(){
+		const stageId = 'stage4';
+		function startWhenReady(){
+			try{
+				if (window.Game && typeof window.Game.init === 'function'){
+					window.Game.init('gameCanvas');
+					if (typeof window.Game.startStage === 'function'){
+						try{ window.Game.startStage(stageId).catch && window.Game.startStage(stageId).catch(console.error); }catch(e){}
+					}
+					return;
+				}
+			}catch(e){}
+			setTimeout(startWhenReady, 80);
+		}
+		window.addEventListener('load', startWhenReady);
+	})();
+	</script>
+
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>Stage 2</title>
+	<link rel="stylesheet" href="../../css/game.css">
+	<style>html,body{height:100%;margin:0;background:#000;color:#fff;display:flex;align-items:center;justify-content:center}#gameCanvas{display:block;width:100vw;height:100vh;position:fixed;inset:0}</style>
+</head>
+<body>
+	<canvas id="gameCanvas" aria-label="Game Canvas"></canvas>
+
+	<!-- 공통 유틸/오버레이 -->
+	<script src="../util.js"></script>
+	<script src="../clear.js"></script>
+	<script src="../fail.js"></script>
+
+	<!-- 캔버스 크기(그리기 버퍼) 동기화: placeholder 페이지에서도 크기 맞춤 -->
+	<script>
+	(function(){
+	  const c = document.getElementById('gameCanvas');
+	  function fitCanvas(){ if(!c) return; const w=Math.max(320,Math.floor(window.innerWidth)); const h=Math.max(240,Math.floor(window.innerHeight)); if(c.width!==w||c.height!==h){c.width=w;c.height=h;} }
+	  window.addEventListener('resize', fitCanvas);
+	  if(document.readyState==='complete' || document.readyState==='interactive') setTimeout(fitCanvas,0); else document.addEventListener('DOMContentLoaded', fitCanvas);
+	})();
+	</script>
+
+	<!-- 이 스테이지는 아직 스크립트가 없습니다. 간단 안내와 뒤로가기 버튼을 표시합니다. -->
+	<div style="position:relative;z-index:10010;text-align:center;pointer-events:auto;">
+		<h1>Stage 2 - 준비중</h1>
+		<p>이 스테이지의 실행 스크립트가 없습니다. 나중에 다시 시도하세요.</p>
+		<p><a href="../../select.html">스테이지 선택으로 돌아가기</a></p>
+	</div>
+</body>
+</html>

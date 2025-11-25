@@ -238,95 +238,18 @@
             });
         }
 
-        // stageId에 따라 필요한 player 및 게임 런타임(gameScript.js)을 불러온 뒤 Game.startStage 호출
+        // 간단한 동작: 각 스테이지의 HTML 페이지로 이동합니다.
+        // 각 스테이지 HTML에는 자신이 필요로 하는 JS를 포함해야 합니다.
         function startStageById(stageId){
             if (!stageId) return;
-            // 모든 스테이지를 시작할 수 있도록 허용 (stage1에만 국한되지 않음)
-            // 먼저 player와 게임 런타임 스크립트가 실제 폴더에서 로드되었는지 확인
-            // stageId 폴더를 기준으로 스테이지별 경로 생성: js/game/<stageId>/...
-            const base = `js/game/${stageId}/`;
-            const playerSrc = `${base}player.js`;
-            const trapSrc = `${base}trap.js`;
-            const groundSrc = `${base}ground.js`;
-            const gameSrc = `${base}gameScript.js`;
-
-            // 로드 순서: player -> trap (optional) -> ground -> game
-            // player -> trap(선택) -> ground -> game 순으로 로드하여 의존성 보장
-            loadScriptOnce(playerSrc).catch((e)=>{
-                console.warn('player.js 로드 실패:', e);
-            }).then(()=>{
-                // 스테이지에 trap 모듈이 있으면 로드 시도(실패 시 조용히 무시)
-                return loadScriptOnce(trapSrc).catch(()=> Promise.resolve());
-            }).then(()=>{
-                return loadScriptOnce(groundSrc).catch((e)=>{
-                    console.warn('ground.js 로드 실패:', e);
-                });
-            }).then(()=>{
-                // ground.init이 사용할 수 있도록 스테이지의 선택적 맵 파일을 먼저 로드 시도
-                // 많은 맵 파일은 `js/game/<stageId>/map/`에 위치하며 `window.Stage4Maps`를 정의합니다.
-                // 맵 파일을 먼저(실패 시 무시), 그 다음에 mapping.js(미니맵), 마지막으로 게임 스크립트를 로드
-                const mapSrc = `${base}map/map_1.js`;
-                const mappingSrc = `${base}mapping.js`;
-                return loadScriptOnce(mapSrc).catch(()=> Promise.resolve()).then(()=>{
-                    return loadScriptOnce(mappingSrc).catch(()=> Promise.resolve());
-                }).then(()=>{
-                    return loadScriptOnce(gameSrc).catch((e)=>{
-                        console.warn('gameScript.js 로드 실패:', e);
-                    });
-                });
-            }).then(()=>{
-                try{
-                    // Game 존재 여부 확인 및 초기화
-                    if (window.Game){
-                        // 먼저 UI 전환: 선택 화면을 숨기고 게임 캔버스를 보이게 함
-                        const canvasEl = document.getElementById('gameCanvas');
-                        const selectUI = document.getElementById('gameSelectUI');
-                        const startScreen = document.getElementById('startScreen');
-                        if (selectUI) selectUI.style.display = 'none';
-                        if (startScreen) startScreen.style.display = 'none';
-                        if (canvasEl){
-                            canvasEl.style.display = '';
-                                // CSS로 처리되지 않으면 캔버스가 뷰포트를 채우도록 설정; 이후 Game.init에서 크기 업데이트
-                            canvasEl.style.width = '100vw';
-                            canvasEl.style.height = '100vh';
-                        }
-                        // 시작 전에 Game에 연습모드 플래그 설정
-                        try{ window.Game.practiceMode = !!(window.StageSelect && window.StageSelect.practice); }catch(e){}
-                        // 초기화 및 스테이지 시작
-                        if (!window.Game.canvas) window.Game.init && window.Game.init('gameCanvas');
-                        // 스테이지 스크립트가 로드되었는지 확인 시도 (스테이지 파일은 js/game/<stageId>/에 위치)
-                        const stageSrc = `${base}${stageId}.js`;
-                        loadScriptOnce(stageSrc).catch(()=> Promise.resolve()).then(()=>{
-                            try{ window.Game.startStage && window.Game.startStage(stageId).catch(console.error); }catch(e){console.error(e);} 
-                        });
-                        } else {
-                        // 만약 gameScript가 비동기로 로드되어 아직 전역에 붙지 않았다면 잠시 대기 후 재시도
-                        setTimeout(()=>{
-                            if (window.Game){
-                                // 동일한 UI 전환 처리
-                                const canvasEl2 = document.getElementById('gameCanvas');
-                                const selectUI2 = document.getElementById('gameSelectUI');
-                                const startScreen2 = document.getElementById('startScreen');
-                                if (selectUI2) selectUI2.style.display = 'none';
-                                if (startScreen2) startScreen2.style.display = 'none';
-                                if (canvasEl2){
-                                    canvasEl2.style.display = '';
-                                    canvasEl2.style.width = '100vw';
-                                    canvasEl2.style.height = '100vh';
-                                }
-                                try{ window.Game.practiceMode = !!(window.StageSelect && window.StageSelect.practice); }catch(e){}
-                                window.Game.init && window.Game.init('gameCanvas');
-                                const stageSrc = `${base}${stageId}.js`;
-                                loadScriptOnce(stageSrc).catch(()=> Promise.resolve()).then(()=>{
-                                    try{ window.Game.startStage && window.Game.startStage(stageId).catch(console.error); }catch(e){console.error(e);} 
-                                });
-                            } else {
-                                    console.error('Game 런타임을 찾을 수 없습니다. js/game/gameScript.js가 올바르게 로드되었는지 확인하세요.');
-                            }
-                        }, 120);
-                    }
-                }catch(err){ console.error(err); }
-            });
+            // 이동 경로: game/<stageId>/<stageId>.html
+            const stageHtml = `game/${stageId}/${stageId}.html`;
+            try{
+                window.location.href = stageHtml;
+            }catch(e){
+                // 만약 네비게이션이 실패하면 폴백으로 현재 페이지 내에서 알림
+                console.error('Cannot navigate to stage HTML:', stageHtml, e);
+            }
         }
 
     // 크기 반응형 유지
@@ -433,20 +356,13 @@
             settingsBtn.setAttribute('aria-label','환경설정 열기');
             settingsBtn.textContent = '환경설정';
 
-            // 타이틀 클릭 핸들러
+            // 타이틀 클릭 핸들러: 타이틀 페이지(index.html)로 이동
             titleBtn.addEventListener('click', function(){
-                // 시작 화면을 보이고 선택 UI 및 게임 캔버스를 숨깁니다
-                const selectUI = document.getElementById('gameSelectUI');
-                const startScreen = document.getElementById('startScreen');
-                const canvasEl = document.getElementById('gameCanvas');
-                const selectCanvas = document.getElementById('gameSelectCanvas');
-                if (selectUI) { selectUI.style.display = 'none'; selectUI.setAttribute('aria-hidden','true'); }
-                if (canvasEl) canvasEl.style.display = 'none';
-                if (selectCanvas) selectCanvas.style.display = 'none';
-                if (startScreen) { startScreen.style.display = ''; startScreen.removeAttribute('aria-hidden'); }
-                // 주요 시작 버튼이 있으면 포커스합니다
-                const btnStart = document.getElementById('btnStart');
-                if (btnStart) try{ btnStart.focus(); }catch(e){}
+                try{
+                    window.location.href = 'index.html';
+                }catch(e){
+                    try{ window.history.back(); }catch(err){}
+                }
             });
 
             // 설정 클릭 핸들러

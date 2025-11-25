@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스테이지 선택 - 은하수 속의 조각배</title>
+
+    <link rel="stylesheet" href="css/startpage.css">
+    <link rel="stylesheet" href="css/select.css">
+  </head>
+
+  <body>
+    <!-- Stage select canvas -->
+    <canvas id="gameSelectCanvas" tabindex="0" aria-label="스테이지 선택 캔버스"></canvas>
+
+    <!-- Game Select UI: same structure as in index.html -->
+    <div id="gameSelectUI" class="select-ui" aria-hidden="false">
+      <div class="select-controls">
+        <button id="customizeBtn" class="btn customize">커스텀마이징</button>
+      </div>
+
+      <section class="stage-selector" aria-label="스테이지 선택">
+        <h2 class="sr-only">스테이지 선택</h2>
+        <div class="stage-list-wrapper">
+          <ul id="stageList" class="stage-list" role="list">
+            <!-- Stage items will be rendered here by js/gameSelect.js -->
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <!-- Scripts needed for the select screen -->
+    <script src="js/user.js" defer></script>
+    <script src="js/menuBgm.js" defer></script>
+    <script src="js/gameSelect.js" defer></script>
+    <script src="js/custom.js" defer></script>
+    <script src="js/setting.js" defer></script>
+  </body>
+</html>

@@ -23,31 +23,22 @@ document.addEventListener('DOMContentLoaded', function(){
   const btnStart = document.getElementById('btnStart'); // '게임시작' 버튼 요소
   const btnHow = document.getElementById('btnHow'); // '게임설명' 버튼 요소
   const btnSettings = document.getElementById('btnSettings'); // '환경설정' 버튼 요소
-  const gameCanvas = document.getElementById('gameCanvas'); // 메인 게임 캔버스 요소
-  const selectCanvas = document.getElementById('gameSelectCanvas'); // 스테이지 선택 캔버스 요소
-  const gameSelectUI = document.getElementById('gameSelectUI'); // 스테이지 선택 UI 요소
+  // Note: canvases and select UI are now moved to their own pages.
 
-  // 시작 화면 숨기기 및 스테이지 선택 UI 표시 함수
-  function hideStartScreen(){
-    // 숨기기: start screen
-    if (startScreen) startScreen.style.display = 'none';
-    // 기본 동작: 게임 선택 캔버스와 UI를 표시하고 메인 게임 캔버스는 표시하지 않습니다.
-    if (selectCanvas){ selectCanvas.style.display = 'block'; try { selectCanvas.focus(); } catch(e){} }
-    // 게임 선택 UI 표시
-    if (gameSelectUI){
-      gameSelectUI.style.display = 'block';
-      gameSelectUI.setAttribute('aria-hidden','false');
+  // 이동: 시작 화면을 닫고 스테이지 선택 페이지로 이동합니다.
+  function goToSelect(){
+    try {
+      // Prefer a relative navigation to the dedicated select page
+      window.location.href = 'select.html';
+    } catch (e) {
+      // Fallback: hide the start screen if navigation fails
+      if (startScreen) startScreen.style.display = 'none';
     }
   }
 
   // 게임 시작 버튼 클릭 이벤트 연결
   btnStart && btnStart.addEventListener('click', function(){
-    hideStartScreen();
-    /*
-    여기서는 게임을 자동으로 시작하지 않습니다.
-    스테이지 선택 UI를 표시하고 실제 게임 캔버스(`#gameCanvas`)와
-    `window.startGame`이 호출되는 시점을 별도로 제어합니다.
-    */
+    goToSelect();
   });
 
   // 게임 설명 버튼 클릭 이벤트 연결
@@ -89,11 +80,7 @@ document.addEventListener('DOMContentLoaded', function(){
     try { close.focus(); } catch (e) {}
   }
 
-  // 초기 상태: 두 캔버스와 선택 UI는 숨기고 시작 화면은 보이게 설정
-  if (gameCanvas) gameCanvas.style.display = 'none';  // 메인 게임 캔버스 숨기기
-  if (selectCanvas) selectCanvas.style.display = 'none'; // 스테이지 선택 캔버스 숨기기
-  // 스테이지 선택 UI 숨기기
-  if (gameSelectUI) { gameSelectUI.style.display = 'none'; gameSelectUI.setAttribute('aria-hidden','true'); }
+  // 초기 상태: (no-op) canvases and select UI live on other pages now
 
   // 시작 화면에 배경 별 생성 (부드러운 반짝임 효과)
   (function createBackgroundStars(){

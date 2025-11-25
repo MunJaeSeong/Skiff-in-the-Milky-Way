@@ -186,12 +186,17 @@
   // 설정 읽기/쓰기 및 적용 함수
   function readSettings(){
     try{
-      // 이전에 저장된 설정을 불러오고, 없으면 기본값을 반환
+      // If a centralized user store exists, prefer it
+      if (window.User && typeof window.User.get === 'function'){
+        const s = window.User.get('settings') || {};
+        // migrate if necessary: keep defaults and merge
+        return Object.assign({}, defaults, s);
+      }
+      // Fallback: legacy standalone settings in localStorage
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return Object.assign({}, defaults);
-      // 저장된 JSON을 파싱
       const parsed = JSON.parse(raw);
-      // 이전 버전에서 soundVolume 하나만 있던 경우 music/voice에 복사하여 마이그레이션 처리
+      // migration for older key names
       if (typeof parsed.musicVolume === 'undefined' && typeof parsed.voiceVolume === 'undefined' && typeof parsed.soundVolume === 'number'){
         parsed.musicVolume = parsed.soundVolume;
         parsed.voiceVolume = parsed.soundVolume;
@@ -203,7 +208,17 @@
   }
   // 설정 저장 함수
   function writeSettings(s){
-    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }catch(e){}
+    try{
+      // If a centralized user store exists, write into it under `settings`
+      if (window.User && typeof window.User.update === 'function'){
+        // merge with existing user.settings
+        try{
+          window.User.update({ settings: s });
+        }catch(e){ /* best-effort */ }
+      } else {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+      }
+    }catch(e){}
   }
   // 언어 적용 함수
   function applyLanguage(lang){
@@ -477,6 +492,23 @@
   (function init(){
     const s = readSettings();
     applyLanguage(s.language);
+    // If a centralized User store exists but legacy standalone settings exist in localStorage,
+    // migrate them into the User record (best-effort) and remove the legacy key.
+    try{
+      if (window.User && typeof window.User.get === 'function'){
+        const existing = window.User.get('settings');
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if ((!existing || Object.keys(existing).length === 0) && raw){
+          try{
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object'){
+              window.User.update({ settings: Object.assign({}, defaults, parsed) });
+              try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+            }
+          }catch(e){}
+        }
+      }
+    }catch(e){}
     // API 노출
     window.Settings = window.Settings || {};
     window.Settings.open = open;

@@ -6,7 +6,6 @@
     <title>은하수 속의 조각배</title>
 
     <link rel="stylesheet" href="css/startpage.css">
-    <link rel="stylesheet" href="css/select.css">
   </head>
 
   <body>
@@ -32,34 +31,12 @@
       </div>
     </div>
 
-    <!-- 게임 캔버스: 시작 화면이 가려진 후 표시됩니다 -->
-  <canvas id="gameSelectCanvas" tabindex="0" aria-label="스테이지 선택 캔버스"></canvas>
-  <canvas id="gameCanvas" tabindex="0" aria-label="게임 캔버스" style="display:none;"></canvas>
-
-    <!-- Game Select UI: customization button, practice mode checkbox, and stage selector -->
-    <div id="gameSelectUI" class="select-ui" aria-hidden="true">
-      <div class="select-controls">
-        <button id="customizeBtn" class="btn customize">커스텀마이징</button>
-      </div>
-
-      <section class="stage-selector" aria-label="스테이지 선택">
-        <h2 class="sr-only">스테이지 선택</h2>
-        <div class="stage-list-wrapper">
-          <ul id="stageList" class="stage-list" role="list">
-            <!-- Stage items will be rendered here by js/gameSelect.js -->
-          </ul>
-        </div>
-      </section>
-    </div>
-  <script src="js/menuBgm.js" defer></script>
-  <script src="js/main.js" defer></script>
-    <script src="js/gameSelect.js" defer></script>
-    <script src="js/custom.js" defer></script>
+    <!-- User store, settings and explanation modules (needed by title buttons) -->
+    <script src="js/user.js" defer></script>
     <script src="js/setting.js" defer></script>
     <script src="js/explanation.js" defer></script>
-    <!-- Core game runtime scripts -->
-    <script src="js/game/stage3/player.js" defer></script>
-    <script src="js/game/stage3/gameScript.js" defer></script>
-    <script src="js/game/stage3/stage3.js" defer></script>
+    <!-- Menu BGM and start-screen controller -->
+    <script src="js/menuBgm.js" defer></script>
+    <script src="js/main.js" defer></script>
   </body>
 </html>

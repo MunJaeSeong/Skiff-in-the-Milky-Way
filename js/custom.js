@@ -23,14 +23,41 @@
 
   const STORAGE_KEY = 'skiff_custom_v1';
 
-  // 로컬 저장소에서 커스터마이징 데이터 읽기/쓰기 함수
+  // 커스터마이징 데이터는 가능한 경우 중앙 User 저장소를 사용합니다.
   function readCustom(){
-    try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; }catch(e){ return {}; }
+    try{
+      if (window.User && typeof window.User.get === 'function'){
+        // User.get('custom') may be null/undefined
+        const u = window.User.get('custom');
+        if (u && typeof u === 'object') return u;
+        // if no custom stored in User, migrate from legacy localStorage if present
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw){
+          try{
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object'){
+              // write into User store (best-effort)
+              try{ window.User.update({ custom: parsed }); }catch(e){}
+              try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+              return parsed;
+            }
+          }catch(e){}
+        }
+        return {};
+      }
+      // fallback to legacy localStorage
+      try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; }catch(e){ return {}; }
+    }catch(e){ return {}; }
   }
 
-  // 저장 함수
+  // 저장 함수: write into User store when available, otherwise legacy localStorage
   function writeCustom(obj){
-    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }catch(e){}
+    try{
+      if (window.User && typeof window.User.update === 'function'){
+        try{ window.User.update({ custom: obj }); }catch(e){ /* best-effort */ }
+      }
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }catch(e){}
+    }catch(e){}
   }
 
   function open(){
@@ -188,7 +215,20 @@
     // characters 배열에서 동적으로 캐릭터 항목을 렌더링
   // 기본 선택 캐릭터는 'rea'로 설정합니다. 저장된 값이 있으면 그 값을 사용하고,
   // 'rea'가 목록에 없을 경우에는 첫 항목을 기본으로 사용합니다.
-  let selectedCharacter = (data && data.character) ? data.character : (characters.find(c => c.id === 'rea') ? 'rea' : (characters[0] && characters[0].id) || 'rea');
+  // Priority for selected character:
+  // 1) custom data (migrated or saved)
+  // 2) centralized User.selectedCharacter
+  // 3) default 'rea' or first character
+  let selectedCharacter = (data && data.character) ? data.character : null;
+  if (!selectedCharacter){
+    try{
+      if (window.User && typeof window.User.get === 'function'){
+        const sc = window.User.get('selectedCharacter');
+        if (sc) selectedCharacter = sc;
+      }
+    }catch(e){ /* ignore */ }
+  }
+  if (!selectedCharacter) selectedCharacter = (characters.find(c => c.id === 'rea') ? 'rea' : (characters[0] && characters[0].id) || 'rea');
     function createCharacterItem(ch){
       const item = document.createElement('button');
       item.type = 'button';
@@ -332,6 +372,22 @@
     saveBtn.addEventListener('click', function(){
       // 선택된 캐릭터만 저장
       const obj = Object.assign({}, data, { character: selectedCharacter, updated: Date.now() });
+      // Persist into centralized User store when available
+      try{
+        if (window.User){
+          try{
+            // ensure the user 'owns' the character before selecting it
+            if (typeof window.User.unlockCharacter === 'function') {
+              try { window.User.unlockCharacter(selectedCharacter); } catch(e) { /* ignore */ }
+            }
+            // set selected character in central store (may fail if not unlocked)
+            try { window.User.setSelectedCharacter(selectedCharacter); } catch(e) { /* ignore */ }
+            // also store custom payload in User data
+            try{ window.User.update({ custom: obj }); }catch(e){}
+          }catch(e){}
+        }
+      }catch(e){}
+      // Always write legacy localStorage as fallback (keeps previous behaviour)
       writeCustom(obj);
       try{ closeModal(); }catch(e){}
     });

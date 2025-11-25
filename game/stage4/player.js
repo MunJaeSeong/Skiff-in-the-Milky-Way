@@ -48,6 +48,85 @@
 			} catch (e) { /* ignore and keep previous values */ }
 		},
 
+		// Load sprite atlases for a given character id (normalizes id and reloads images)
+		loadSprites(characterId) {
+			try {
+				let id = typeof characterId === 'string' ? characterId.trim() : (this.selectedCharacter || 'rea');
+				if (!id) id = 'rea';
+				id = id.toLowerCase();
+				this.selectedCharacter = id;
+				// reset sprite state
+				this.sprites = { runLeft: {}, runRight: {}, stopLeft: {}, stopRight: {} };
+				this.hasSprites = false;
+				this.lieRightImg = null;
+				this.lieLeftImg = null;
+				this.hasLieImages = false;
+				const folderName = id.charAt(0).toUpperCase() + id.slice(1).toLowerCase();
+				const base = `../../assets/character/${folderName}/move/`;
+				const names = {
+					runLeft: `${folderName}_run_left`,
+					runRight: `${folderName}_run_right`,
+					stopLeft: `${folderName}_stop_left`,
+					stopRight: `${folderName}_stop_right`
+				};
+				Object.keys(names).forEach(key => {
+					try{
+						const atlasSrc = base + names[key] + '_atlas.png';
+						const atlasImg = new Image();
+						atlasImg.onload = () => {
+							try{
+								const w = atlasImg.width, h = atlasImg.height;
+								const targetFrames = 28;
+								const factorPairs = [[1,28],[2,14],[4,7],[7,4],[14,2],[28,1]];
+								const desiredRatio = (this.player && this.player.width && this.player.height) ? (this.player.width / this.player.height) : 1;
+								let best = factorPairs[0];
+								let bestScore = Infinity;
+								for (let i = 0; i < factorPairs.length; i++){
+									const [c,r] = factorPairs[i];
+									const frameWcand = w / c;
+									const frameHcand = h / r;
+									const candRatio = frameWcand / frameHcand;
+									const score = Math.abs(candRatio - desiredRatio) + Math.abs((c * r) - targetFrames) * 0.001;
+									if (score < bestScore){ bestScore = score; best = [c,r]; }
+								}
+								let cols = Math.max(1, best[0]);
+								let rows = Math.max(1, best[1]);
+								const frameW = Math.floor(w / cols) || 1;
+								const frameH = Math.floor(h / rows) || 1;
+								const frames = targetFrames;
+								this.sprites[key].atlas = atlasImg;
+								this.sprites[key].atlasFrames = frames;
+								this.sprites[key].atlasCols = cols;
+								this.sprites[key].atlasRows = rows;
+								this.sprites[key].atlasFrameW = frameW;
+								this.sprites[key].atlasFrameH = frameH;
+								this.hasSprites = true;
+							}catch(e){/* ignore per-image errors */}
+						};
+						atlasImg.onerror = () => { /* ignore */ };
+						atlasImg.src = atlasSrc;
+						this.sprites[key].atlas = null;
+					}catch(e){/* ignore */}
+				});
+				// lie-down and hold images
+				try{
+					const lieRight = new Image();
+					const lieLeft = new Image();
+					let tried = 0;
+					const tryPaths = [ `${base}${folderName}_liedown_right.png`, `assets/character/${folderName}/${folderName}_liedown_right.png` ];
+					const tryPathsLeft = [ `${base}${folderName}_liedown_left.png`, `assets/character/${folderName}/${folderName}_liedown_left.png` ];
+					lieRight.onload = () => { this.lieRightImg = lieRight; this.hasLieImages = true; };
+					lieLeft.onload = () => { this.lieLeftImg = lieLeft; this.hasLieImages = true; };
+					lieRight.onerror = () => { if (tried === 0) { tried = 1; lieRight.src = tryPaths[1]; } };
+					lieLeft.onerror = () => { if (tried === 0) { tried = 1; lieLeft.src = tryPathsLeft[1]; } };
+					lieRight.src = tryPaths[0]; lieLeft.src = tryPathsLeft[0];
+					const hold = new Image(); hold.onload = () => { this.holdImg = hold; }; hold.onerror = () => {}; hold.src = base + folderName + '_hold.png';
+				}catch(e){/* ignore */}
+				// recalc physics in case sprite size affects scale
+				try{ this.configurePhysics(); }catch(e){}
+			} catch (e) { /* ignore top-level */ }
+		},
+
 		// 런타임에 물리값을 조절하기 위한 헬퍼 셋터들. config를 갱신한 뒤 재계산합니다.
 		setGravityMultiplier(val) { if (typeof val === 'number') { this.config.gravityMultiplier = val; this.configurePhysics(); } },
 		setMoveSpeedMultiplier(val) { if (typeof val === 'number') { this.config.moveSpeedMultiplier = val; this.configurePhysics(); } },
@@ -103,116 +182,42 @@
 				this.player.x = startPlatformX;
 			}
 
-			// 이전에 선택한 캐릭터 정보를 로컬 스토리지에서 불러옵니다.
+			// 이전에 선택한 캐릭터 정보를 중앙 저장소(window.User)에서 불러옵니다.
+			// 없는 경우 레거시 로컬스토리지 키(skiff_custom_v1)를 폴백으로 사용합니다.
 			try {
-				const raw = localStorage.getItem('skiff_custom_v1');
-				const data = raw ? JSON.parse(raw) : {};
-				this.selectedCharacter = data.character || 'rea';
+				let sel = null;
+				if (window && window.User && typeof window.User.get === 'function') {
+					try { sel = window.User.get('selectedCharacter'); } catch (e) { sel = null; }
+				}
+				if (!sel) {
+					try {
+						const raw = localStorage.getItem('skiff_custom_v1');
+						const data = raw ? JSON.parse(raw) : {};
+						sel = data.character || sel;
+					} catch (e) { /* ignore */ }
+				}
+				this.selectedCharacter = sel || 'rea';
 			} catch (e) { this.selectedCharacter = 'rea'; }
 
-			// 캐릭터 스프라이트(아틀라스)를 불러올 준비를 합니다.
-			// 아틀라스는 `assets/character/<이름>/move/` 폴더에서 찾습니다.
-			this.sprites = { runLeft: {}, runRight: {}, stopLeft: {}, stopRight: {} };
-			this.hasSprites = false;
-			this.lieRightImg = null;
-			this.lieLeftImg = null;
-			this.hasLieImages = false;
+			// Update selectedCharacter when User store changes at runtime
 			try {
-				// 폴더 이름과 파일 이름은 캐릭터 이름의 첫 글자가 대문자입니다. 예: 'Noel'
-				const folderName = this.selectedCharacter.charAt(0).toUpperCase() + this.selectedCharacter.slice(1).toLowerCase();
-				const base = `assets/character/${folderName}/move/`;
-				const names = {
-					runLeft: `${folderName}_run_left`,
-					runRight: `${folderName}_run_right`,
-					stopLeft: `${folderName}_stop_left`,
-					stopRight: `${folderName}_stop_right`
-				};
-				Object.keys(names).forEach(key => {
-					// 아틀라스 PNG만 불러옵니다. GIF 대체 로드는 사용하지 않습니다.
-					const atlasSrc = base + names[key] + '_atlas.png';
-					const atlasImg = new Image();
-					atlasImg.onload = () => {
-						// 아틀라스(한 장 이미지)에 들어 있는 프레임 배열을 계산합니다.
-						// 가로/세로 칸 수를 정해 각 프레임의 픽셀 크기를 계산합니다.
-						const w = atlasImg.width, h = atlasImg.height;
-						// 이 게임은 28프레임을 사용하도록 되어 있습니다. 아틀라스 비율에 맞게
-						// 가로x세로 조합을 골라 프레임 수를 맞춥니다.
-						const targetFrames = 28;
-						const factorPairs = [[1,28],[2,14],[4,7],[7,4],[14,2],[28,1]];
-						const desiredRatio = (this.player && this.player.width && this.player.height) ? (this.player.width / this.player.height) : 1;
-						let best = factorPairs[0];
-						let bestScore = Infinity;
-						for (let i = 0; i < factorPairs.length; i++) {
-							const [c,r] = factorPairs[i];
-							const frameWcand = w / c;
-							const frameHcand = h / r;
-							const candRatio = frameWcand / frameHcand;
-							const score = Math.abs(candRatio - desiredRatio) + Math.abs((c * r) - targetFrames) * 0.001;
-							if (score < bestScore) { bestScore = score; best = [c,r]; }
+				document.addEventListener && document.addEventListener('userchange', function (ev) {
+					try {
+						if (ev && ev.detail && (ev.detail.key === 'selectedCharacter' || ev.detail.key === 'all')) {
+							var newSel = null;
+							if (window && window.User && typeof window.User.get === 'function') {
+								newSel = window.User.get('selectedCharacter');
+							}
+							if (newSel) {
+								try { this.loadSprites(newSel); } catch(e) { /* ignore */ }
+							}
 						}
-						let cols = Math.max(1, best[0]);
-						let rows = Math.max(1, best[1]);
-						// 최종적으로 각 프레임의 픽셀 크기를 정수로 계산합니다.
-						const frameW = Math.floor(w / cols) || 1;
-						const frameH = Math.floor(h / rows) || 1;
-						const frames = targetFrames; // force 28 frames
-						this.sprites[key].atlas = atlasImg;
-						this.sprites[key].atlasFrames = frames;
-						this.sprites[key].atlasCols = cols;
-						this.sprites[key].atlasRows = rows;
-						this.sprites[key].atlasFrameW = frameW;
-						this.sprites[key].atlasFrameH = frameH;
-						this.hasSprites = true; // at least one atlas loaded
-					};
-					atlasImg.onerror = () => {
-						// intentionally do nothing; no GIF fallback
-					};
-					atlasImg.src = atlasSrc;
-					this.sprites[key].atlas = null;
-				});
-				// lie-down images: try loading from move subfolder first, then fall back to character root
-				try {
-					const lieRight = new Image();
-					const lieLeft = new Image();
-					let tried = 0;
-					const tryPaths = [
-						`${base}${folderName}_liedown_right.png`,
-						`assets/character/${folderName}/${folderName}_liedown_right.png`
-					];
-					const tryPathsLeft = [
-						`${base}${folderName}_liedown_left.png`,
-						`assets/character/${folderName}/${folderName}_liedown_left.png`
-					];
+					} catch (e) { /* ignore listener errors */ }
+				}.bind(this), false);
+			} catch (e) { /* ignore addEventListener errors */ }
 
-					lieRight.onload = () => { this.lieRightImg = lieRight; this.hasLieImages = true; };
-					lieLeft.onload = () => { this.lieLeftImg = lieLeft; this.hasLieImages = true; };
-
-					lieRight.onerror = () => {
-						// if first path failed, try fallback
-						if (tried === 0) { tried = 1; lieRight.src = tryPaths[1]; }
-					};
-					lieLeft.onerror = () => {
-						if (tried === 0) { tried = 1; lieLeft.src = tryPathsLeft[1]; }
-					};
-
-					// start by trying move/ path
-					lieRight.src = tryPaths[0];
-					lieLeft.src = tryPathsLeft[0];
-				} catch (e) { /* ignore */ }
-				// hold image (used when grabbing tether)
-				try {
-					const hold = new Image();
-					hold.onload = () => { this.holdImg = hold; };
-					hold.onerror = () => { /* ignore */ };
-					hold.src = base + folderName + '_hold.png';
-				} catch (e) { /* ignore */ }
-			} catch (e) { /* ignore */ }
-
-
-			// 플레이어 크기와 설정(config)에 따라 물리 파라미터를 계산합니다.
-			try {
-				this.configurePhysics();
-			} catch (e) { /* 실패 시 기존 값 유지 */ }
+			// load sprites for the selected character (normalizes id)
+			try{ this.loadSprites(this.selectedCharacter); }catch(e){/* ignore */}
 
 			// 애니메이션 및 상태를 위한 런타임 변수들
 			this.facing = 'right'; // 'left' 또는 'right'
