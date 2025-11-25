@@ -78,6 +78,9 @@
 		isLying: false,
 		lieRightImg: null,
 		lieLeftImg: null,
+		onTether: false,
+		tether: null,
+		holdImg: null,
 
 		/**
 		 * 플레이어 초기화 함수
@@ -193,6 +196,13 @@
 					lieRight.src = tryPaths[0];
 					lieLeft.src = tryPathsLeft[0];
 				} catch (e) { /* ignore */ }
+				// hold image (used when grabbing tether)
+				try {
+					const hold = new Image();
+					hold.onload = () => { this.holdImg = hold; };
+					hold.onerror = () => { /* ignore */ };
+					hold.src = base + folderName + '_hold.png';
+				} catch (e) { /* ignore */ }
 			} catch (e) { /* ignore */ }
 
 
@@ -251,8 +261,14 @@
 					// don't allow left/right movement while lying
 				} else {
 					this.isLying = false;
-					if (keys['ArrowLeft']) { p.x -= speed; p.xSpeed = -speed; this.facing = 'left'; moving = true; }
-					if (keys['ArrowRight']) { p.x += speed; p.xSpeed = speed; this.facing = 'right'; moving = true; }
+					// If player is attached to a tether, disallow horizontal movement here.
+					if (!p.onTether) {
+						if (keys['ArrowLeft']) { p.x -= speed; p.xSpeed = -speed; this.facing = 'left'; moving = true; }
+						if (keys['ArrowRight']) { p.x += speed; p.xSpeed = speed; this.facing = 'right'; moving = true; }
+					} else {
+						// ensure no horizontal velocity while on tether
+						p.xSpeed = 0;
+					}
 				}
 			} else {
 				// while knockback/stun is active, prevent input-based movement
@@ -283,9 +299,14 @@
 				}
 			} catch (e) { /* ignore */ }
 
-			// 수직 물리 계산(중력 적용과 y 속도 통합)
-			p.ySpeed += p.gravity;
-			p.y += p.ySpeed;
+			// 수직 물리 계산: 중력은 로프에 매달린 상태에서는 적용하지 않습니다.
+			if (!p.onTether) {
+				p.ySpeed += p.gravity;
+				p.y += p.ySpeed;
+			} else {
+				// while on tether, keep vertical speed zero to ignore gravity
+				p.ySpeed = 0;
+			}
 
 			// If player is lying and presses jump while grounded, attempt a pass-through
 			// only if the platform directly below is a map-defined platform (tagged
@@ -329,6 +350,48 @@
 				p.ySpeed = p.jumpPower;
 				p.grounded = false;
 			}
+
+			// --- Tether interaction: press ArrowUp near tether top to grab ---
+			try {
+				if (!kbActive && keys['ArrowUp'] && !p.onTether) {
+					const gw = window.Stage4Ground;
+					if (gw && typeof gw.findTetherForPlayer === 'function') {
+						const t = gw.findTetherForPlayer(p);
+						if (t) {
+							p.onTether = true;
+							p.tether = t;
+							p.ySpeed = 0;
+							// align horizontally to tether; keep the current Y so player stays
+							// exactly where they grabbed the rope (no vertical snap)
+							p.x = t.x - Math.round(p.width / 2);
+							p.grounded = false;
+						}
+					}
+				}
+				// while on tether: allow climb up/down and release with Space
+				if (p.onTether) {
+					// clamp within tether length
+					if (p.tether) {
+						if (keys['ArrowUp']) p.y -= 2;
+						if (keys['ArrowDown']) p.y += 2;
+						// clamp
+						p.y = Math.max(p.tether.y - p.height + 4, Math.min(p.tether.y + p.tether.length - 4, p.y));
+					}
+					// release / jump off
+					if (keys[' ']) {
+						// directional jump-off: if left or right held, give horizontal impulse
+						if (keys['ArrowLeft']) {
+							p.onTether = false; p.tether = null; p.ySpeed = p.jumpPower; p.grounded = false; p.xSpeed = -Math.max(speed, 1) * 1.6;
+						} else if (keys['ArrowRight']) {
+							p.onTether = false; p.tether = null; p.ySpeed = p.jumpPower; p.grounded = false; p.xSpeed = Math.max(speed, 1) * 1.6;
+						} else {
+							p.onTether = false; p.tether = null; p.ySpeed = p.jumpPower; p.grounded = false;
+						}
+					}
+					// while on tether, disable horizontal movement
+					p.xSpeed = 0;
+				}
+			} catch (e) { /* best-effort tether behavior: ignore errors */ }
 
 			// 걷는지/멈춤 여부와 바라보는 방향에 따라 사용할 스프라이트 키를 선택합니다.
 			// 선택된 키는 그리기 함수에서 알맞은 아틀라스를 결정하는 데 사용됩니다.
@@ -407,6 +470,28 @@
 		// 스프라이트(아틀라스)가 있으면 아틀라스를 우선 사용합니다.
 		draw(ctx, offsetX = 0, offsetY = 0) {
 			const p = this.player;
+
+			// If attached to a tether and a hold image is available, draw it
+			try {
+				if (p.onTether && this.holdImg && this.holdImg.complete) {
+					const img = this.holdImg;
+					const iw = img.width || 1;
+					const ih = img.height || 1;
+					const ratio = iw / ih;
+					let drawW = p.width, drawH = p.height;
+					if (p.width / p.height > ratio) { drawH = p.height; drawW = Math.round(drawH * ratio); }
+					else { drawW = p.width; drawH = Math.round(drawW / ratio); }
+					// slightly reduce size so the hold sprite fits nicely
+					drawW = Math.max(1, Math.round(drawW * 0.9));
+					drawH = Math.max(1, Math.round(drawH * 0.9));
+					const dx = p.x + Math.round((p.width - drawW) / 2) - offsetX;
+					const dy = p.y + Math.round((p.height - drawH) / 2) - offsetY;
+					ctx.drawImage(img, 0, 0, iw, ih, dx, dy, drawW, drawH);
+					// draw debug outlines like other draw paths
+					try { ctx.save(); ctx.strokeStyle = 'green'; ctx.lineWidth = 2; ctx.strokeRect(Math.round(p.x - offsetX), Math.round(p.y - offsetY), p.width, p.height); ctx.restore(); } catch (e) {}
+					return;
+				}
+			} catch (e) { /* ignore hold-image drawing errors */ }
 			// pick sprite data for currentKey
 			const key = this.currentKey || 'stopRight';
 			const sprite = this.sprites[key] || {};

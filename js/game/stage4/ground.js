@@ -17,8 +17,10 @@
   const Stage4Ground = {
     ground : [],
     platforms: [],
+    tethers: [],
     finish: null,
     worldWidth: null,
+    _tetherImg: null,
 
     // 월드/플랫폼 초기화
     // - `worldScale`을 사용하면 월드를 더 넓게 만들 수 있습니다(기본값: 8).
@@ -122,6 +124,23 @@
         this.traps = [];
         this._pendingTraps = null;
       }
+      // tethers: optional map-defined vertical ropes the player can grab
+      if (mapData && Array.isArray(mapData.tethers)) {
+        this.tethers = [];
+        mapData.tethers.forEach(t => {
+          const tx = (typeof t.x === 'number') ? t.x : 0;
+          const ty = (typeof t.y === 'number') ? t.y : Math.max(40, startPlatformY - 80);
+          const len = (typeof t.length === 'number') ? Math.max(8, t.length) : 400;
+          this.tethers.push({ x: tx, y: ty, length: len });
+        });
+        // preload a hold image (Noel_hold) to use when player grabs tether
+        try {
+          this._tetherImg = new Image();
+          this._tetherImg.src = 'assets/character/Noel/move/Noel_hold.png';
+        } catch (e) { this._tetherImg = null; }
+      } else {
+        this.tethers = [];
+      }
       // 캔버스/월드 크기 노출 (카메라/미니맵/플레이어 로직용)
       this.worldWidth = worldWidth;
       this.worldHeight = worldHeight;
@@ -171,6 +190,29 @@
       // draw traps if available
       if (window.Stage4Traps && Array.isArray(this.traps)) {
         try { window.Stage4Traps.draw(ctx, offsetX, offsetY); } catch (e) { /* ignore draw errors */ }
+      }
+
+      // draw tethers (vertical ropes)
+      if (Array.isArray(this.tethers) && this.tethers.length > 0) {
+        try {
+          ctx.save();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = '#8B5A2B'; // rope color (brownish)
+          ctx.fillStyle = '#6b6b6b';
+          this.tethers.forEach(t => {
+            const topX = Math.round(t.x - offsetX);
+            const topY = Math.round(t.y - offsetY);
+            const bottomY = Math.round(t.y + t.length - offsetY);
+            // rope line
+            ctx.beginPath();
+            ctx.moveTo(topX, topY);
+            ctx.lineTo(topX, bottomY);
+            ctx.stroke();
+            // top anchor
+            ctx.beginPath(); ctx.arc(topX, topY, 6, 0, Math.PI * 2); ctx.fill();
+          });
+          ctx.restore();
+        } catch (e) { /* ignore drawing errors */ }
       }
     },
     // checkCollision(player)
@@ -268,6 +310,42 @@
         try { return !!window.Stage4Traps.checkCollision(player); } catch (e) { return false; }
       }
       return false;
+    }
+    ,
+
+    // findTetherForPlayer(player)
+    // - returns a tether object if player is close enough to the tether top anchor to grab it
+    findTetherForPlayer(player) {
+      try {
+        if (!player || !Array.isArray(this.tethers)) return null;
+        let rect = null;
+        if (typeof player.getCollisionRect === 'function') rect = player.getCollisionRect();
+        if (!rect) rect = { x: player.x, y: player.y, width: player.width, height: player.height };
+        // If the tether's X lies within the player's collision rect (or a small padding)
+        // and the tether's top Y is inside the player's collision rect (or the tether
+        // vertical span intersects the player's rect), then allow grabbing.
+        const xPad = Math.max(8, Math.round(rect.width * 0.1));
+        const rectLeft = rect.x - xPad;
+        const rectRight = rect.x + rect.width + xPad;
+        const rectTop = rect.y;
+        const rectBottom = rect.y + rect.height;
+        for (let i = 0; i < this.tethers.length; i++) {
+          const t = this.tethers[i];
+          if (!t) continue;
+          const tx = t.x;
+          const ty = t.y;
+          const tetherTopY = ty;
+          const tetherBottomY = ty + (typeof t.length === 'number' ? t.length : 0);
+          // Check X overlap (tether is basically a vertical line at tx)
+          if (tx >= rectLeft && tx <= rectRight) {
+            // If the tether top is within the player's rect vertically, allow grab
+            if (tetherTopY >= rectTop && tetherTopY <= rectBottom) return t;
+            // Or if the tether vertical span intersects the player's rect (rope passes through)
+            if (!(tetherBottomY < rectTop || tetherTopY > rectBottom)) return t;
+          }
+        }
+      } catch (e) { /* ignore */ }
+      return null;
     }
   };
 

@@ -77,6 +77,16 @@
       // 4) (추적 몬스터 기능은 제거되었습니다.)
     ],
 
+    // Tethers: vertical ropes/lines that the player can grab and ride.
+    // Each tether: { x, y, length }
+    // - x, y are absolute world coordinates (x = horizontal position, y = top anchor point)
+    // - length is the rope length in pixels downward from y
+    // Example: player can press ArrowUp when near the top to grab the tether.
+    tethers: [
+      { x: 500, y: 7400, length: 600 },
+      { x: 500, y: 6600, length: 700 }
+    ],
+
     // 결승 구역: 퍼센트로 오른쪽 상단 근처에 위치시킵니다.
     finish: {
       x: 6000,  //6000
