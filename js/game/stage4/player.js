@@ -81,6 +81,9 @@
 		onTether: false,
 		tether: null,
 		holdImg: null,
+		// last horizontal key press tracking for quick-tap directional jumps
+		_lastHorizPressTime: 0,
+		_lastHorizDir: null,
 
 		/**
 		 * 플레이어 초기화 함수
@@ -272,8 +275,8 @@
 					this.isLying = false;
 					// If player is attached to a tether, disallow horizontal movement here.
 					if (!p.onTether) {
-						if (keys['ArrowLeft']) { p.x -= speed; p.xSpeed = -speed; this.facing = 'left'; moving = true; }
-						if (keys['ArrowRight']) { p.x += speed; p.xSpeed = speed; this.facing = 'right'; moving = true; }
+						if (keys['ArrowLeft']) { p.x -= speed; p.xSpeed = -speed; this.facing = 'left'; moving = true; this._lastHorizPressTime = Date.now(); this._lastHorizDir = 'left'; }
+						if (keys['ArrowRight']) { p.x += speed; p.xSpeed = speed; this.facing = 'right'; moving = true; this._lastHorizPressTime = Date.now(); this._lastHorizDir = 'right'; }
 					} else {
 						// ensure no horizontal velocity while on tether
 						p.xSpeed = 0;
@@ -388,10 +391,20 @@
 					}
 					// release / jump off
 					if (keys[' ']) {
-						// directional jump-off: if left or right held, give horizontal impulse
-						if (keys['ArrowLeft']) {
+						// determine directional jump: prefer current held left/right,
+						// otherwise accept a recent quick-tap (within 250ms) of left/right
+						let dir = null;
+						if (keys['ArrowLeft']) dir = 'left';
+						else if (keys['ArrowRight']) dir = 'right';
+						else {
+							try {
+								const now = Date.now();
+								if (this._lastHorizPressTime && (now - this._lastHorizPressTime) <= 250) dir = this._lastHorizDir;
+							} catch (e) { /* ignore */ }
+						}
+						if (dir === 'left') {
 							p.onTether = false; p.tether = null; p.ySpeed = p.jumpPower; p.grounded = false; p.xSpeed = -Math.max(speed, 1) * 1.6;
-						} else if (keys['ArrowRight']) {
+						} else if (dir === 'right') {
 							p.onTether = false; p.tether = null; p.ySpeed = p.jumpPower; p.grounded = false; p.xSpeed = Math.max(speed, 1) * 1.6;
 						} else {
 							p.onTether = false; p.tether = null; p.ySpeed = p.jumpPower; p.grounded = false;
