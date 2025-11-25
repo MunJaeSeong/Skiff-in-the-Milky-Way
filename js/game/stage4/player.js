@@ -231,6 +231,14 @@
 				// adopt current knockback velocities into player's speed so physics applies them
 				p.xSpeed = kb.vx;
 				p.ySpeed = kb.vy;
+				// If player was holding a tether, release it when knockback occurs
+				try {
+					if (p.onTether) {
+						p.onTether = false;
+						p.tether = null;
+						p.grounded = false;
+					}
+				} catch (e) { /* ignore */ }
 				// move horizontally according to current speed (input movement is skipped)
 				p.x += p.xSpeed;
 				// gently apply gravity to knockback vertical velocity so player arcs naturally
@@ -487,8 +495,26 @@
 					const dx = p.x + Math.round((p.width - drawW) / 2) - offsetX;
 					const dy = p.y + Math.round((p.height - drawH) / 2) - offsetY;
 					ctx.drawImage(img, 0, 0, iw, ih, dx, dy, drawW, drawH);
-					// draw debug outlines like other draw paths
-					try { ctx.save(); ctx.strokeStyle = 'green'; ctx.lineWidth = 2; ctx.strokeRect(Math.round(p.x - offsetX), Math.round(p.y - offsetY), p.width, p.height); ctx.restore(); } catch (e) {}
+					// draw outer box (green) then inner collision rect (red) like other draw paths
+					try {
+						ctx.save();
+						ctx.strokeStyle = 'green'; ctx.lineWidth = 2;
+						ctx.strokeRect(Math.round(p.x - offsetX), Math.round(p.y - offsetY), p.width, p.height);
+						if (this.isLying) {
+							const innerW = Math.max(1, Math.round(p.width * 2 / 3));
+							const innerH = Math.max(1, Math.round(p.height * 1 / 5));
+							const innerX = Math.round(p.x - offsetX) + Math.round((p.width - innerW) / 2);
+							const innerY = Math.round(p.y - offsetY) + (p.height - innerH) - Math.round(p.height * 0.1);
+							ctx.strokeStyle = 'red'; ctx.lineWidth = 2; ctx.strokeRect(innerX, innerY, innerW, innerH);
+						} else {
+							const innerW = Math.max(1, Math.round(drawW * 2 / 5));
+							const innerH = Math.max(1, Math.round(drawH * 4 / 5));
+							const innerX = dx + Math.round((drawW - innerW) / 2);
+							const innerY = dy + Math.round((drawH - innerH) / 2);
+							ctx.strokeStyle = 'red'; ctx.lineWidth = 2; ctx.strokeRect(innerX, innerY, innerW, innerH);
+						}
+						ctx.restore();
+					} catch (e) { /* ignore drawing errors */ }
 					return;
 				}
 			} catch (e) { /* ignore hold-image drawing errors */ }
