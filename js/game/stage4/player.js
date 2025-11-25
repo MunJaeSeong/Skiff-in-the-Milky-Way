@@ -263,7 +263,8 @@
 			const speed = (typeof this.moveSpeed === 'number') ? this.moveSpeed : 3;
 			// lie-down: if ArrowDown is held, enter lying state and disallow horizontal movement
 			if (!kbActive) {
-				if (keys['ArrowDown']) {
+				// allow entering lying state only when player is grounded
+				if (keys['ArrowDown'] && p.grounded) {
 					this.isLying = true;
 					p.xSpeed = 0;
 					// don't allow left/right movement while lying
