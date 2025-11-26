@@ -30,10 +30,11 @@
     // 스테이지 배열: 선택기(selector)에 새 스테이지 객체를 추가하려면 여기에 항목을 추가하세요.
     // 각 항목은 다음을 포함해야 합니다: id, title, subtitle(선택), image(상대 경로)
     const stages = [
-        { id: 'stage1', title: '은하 협곡', subtitle: '-개발중-', image: 'assets/stage/coming-soon.png' },
-        { id: 'stage2', title: '바다의 섬', subtitle: '-개발중-', image: 'assets/stage/coming-soon.png' },
-        { id: 'stage3', title: '은하 협곡', subtitle: '탄막 게임', image: 'assets/select/galaxy-canyon.png' },
-        { id: 'stage4', title: '성운 횡단로', subtitle: '점프 맵', image: 'assets/select/galaxy-jump.jpg' }
+        { id: 'stage1', title: '', subtitle: '-개발중-', image: 'assets/stage/coming-soon.png' },
+        { id: 'stage2', title: '', subtitle: '-개발중-', image: 'assets/stage/coming-soon.png' },
+        { id: 'stage3', title: '', subtitle: '탄막 게임', image: 'assets/select/galaxy-canyon.png' },
+        { id: 'stage4', title: '', subtitle: '점프 맵', image: 'assets/select/galaxy-jump.jpg' },
+        { id: 'stage5', title: '', subtitle: '리듬 게임', image: 'assets/stage/coming-soon.png' }
     ];
 
     // 스테이지 항목 하나를 생성하는 함수
