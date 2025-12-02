@@ -6,11 +6,11 @@
     // `move/` 폴더의 아틀라스 PNG를 우선 사용하고 가로/세로 그리드로 프레임을 자릅니다
     // 경로는 `game/stage5/stage5.html`을 기준으로 합니다
     imgPaths: {
-      idle: '../../assets/character/Noel/Noel_SD.png',
-      back: '../../assets/character/Noel/move/Noel_SD_walking_back_atlas.png',
-      front: '../../assets/character/Noel/move/Noel_SD_walking_front_atlas.png',
-      left: '../../assets/character/Noel/move/Noel_SD_walking_left_atlas.png',
-      right: '../../assets/character/Noel/move/Noel_SD_walking_right_atlas.png'
+      idle: '../../../assets/character/Noel/Noel_SD.png',
+      back: '../../../assets/character/Noel/move/Noel_SD_walking_back_atlas.png',
+      front: '../../../assets/character/Noel/move/Noel_SD_walking_front_atlas.png',
+      left: '../../../assets/character/Noel/move/Noel_SD_walking_left_atlas.png',
+      right: '../../../assets/character/Noel/move/Noel_SD_walking_right_atlas.png'
     },
 
     // 아틀라스별 예상 프레임 수와 그리드 레이아웃

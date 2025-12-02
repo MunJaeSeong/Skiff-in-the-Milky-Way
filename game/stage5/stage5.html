@@ -4,27 +4,109 @@
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width,initial-scale=1" />
 	<title>Stage 5</title>
-	<link rel="stylesheet" href="../../css/game.css">
-	<style>html,body{height:100%;margin:0;background:#000;color:#fff;display:flex;align-items:center;justify-content:center}#gameCanvas{display:block;width:100vw;height:100vh;position:fixed;inset:0}</style>
+	<link rel="stylesheet" href="stage5.css">
 </head>
 <body>
-	<canvas id="gameCanvas" aria-label="Game Canvas"></canvas>
+	<div id="stage5-wrap">
+		<div class="card">
+			<div class="art" id="albumArt">Main BGM</div>
+			<h2 class="title" id="trackTitle">Main BGM</h2>
+			<div class="badges">
+				<div class="badge">NORMAL: ★☆☆</div>
+				<div class="badge">HARD: ★★☆</div>
+				<div class="badge">MAX: ★★★</div>
+			</div>
 
+			<div class="stats">
+				<div class="stat">
+					<div style="font-size:12px;color:var(--muted)">Current Combo</div>
+					<div style="font-size:20px">0</div>
+				</div>
+				<div class="stat">
+					<div style="font-size:12px;color:var(--muted)">Best Score</div>
+					<div style="font-size:20px">0</div>
+				</div>
+			</div>
+
+			<div class="meta">
+				<div class="row"><div>아티스트</div><div id="artist">Skiff Orchestra</div></div>
+				<div class="row"><div>BPM</div><div id="bpm">120</div></div>
+				<div class="row"><div>길이</div><div id="length">1:55</div></div>
+			</div>
+		</div>
+
+		<div class="right-panel">
+			<div class="card" style="padding:1.2rem">
+				<div style="font-weight:800;font-size:18px;margin-bottom:0.6rem">선택 정보</div>
+				<div style="color:var(--muted);margin-bottom:0.8rem">차트: normal, hard, max</div>
+
+				<div class="filters">
+					<button class="filter-btn">All Track</button>
+					<button class="filter-btn">Playable</button>
+					<button class="filter-btn">Favorite</button>
+				</div>
+
+				<div class="track-list" id="trackList">
+					<div class="track-item selected" data-map="map/moon.html">
+						<div class="thumb">Main</div>
+						<div class="info">
+							<div class="name">moon</div>
+							<div style="color:var(--muted);font-size:13px">Skiff Orchestra · 3 charts</div>
+						</div>
+					</div>
+
+					<div class="track-item" data-map="map/stage3.html">
+						<div class="thumb">Stage</div>
+						<div class="info">
+							<div class="name">Stage 3 BGM</div>
+							<div style="color:var(--muted);font-size:13px">Stage Composer · 3 charts</div>
+						</div>
+					</div>
+				</div>
+
+				<div class="actions">
+					<button class="play-btn" id="playSelected">Play</button>
+					<button class="secondary-btn" id="backBtn">Back</button>
+				</div>
+			</div>
+
+			<div class="card" style="padding:1.2rem;color:var(--muted);font-size:13px">키: D F J K 를 사용하세요. 모바일/터치는 미지원(간단 데모).</div>
+		</div>
+	</div>
 	<!-- 공통 유틸/오버레이 -->
 	<script src="../util.js"></script>
 	<script src="../clear.js"></script>
 	<script src="../fail.js"></script>
 
-	<!-- 캔버스 크기(그리기 버퍼) 동기화: placeholder 페이지에서도 크기 맞춤 -->
+	<!-- Stage5 rhythm modules -->
+	<script src="audio.js"></script>
+	<script src="noteData.js"></script>
+	<script src="renderer.js"></script>
+	<script src="input.js"></script>
+	<script src="judgement.js"></script>
+	<script src="score.js"></script>
+	<script src="gameScript.js"></script>
+
 	<script>
+	// Track selection and Play handling: navigate to selected map HTML
 	(function(){
-	  const c = document.getElementById('gameCanvas');
-	  function fitCanvas(){ if(!c) return; const w=Math.max(320,Math.floor(window.innerWidth)); const h=Math.max(240,Math.floor(window.innerHeight)); if(c.width!==w||c.height!==h){c.width=w;c.height=h;} }
-	  window.addEventListener('resize', fitCanvas);
-	  if(document.readyState==='complete' || document.readyState==='interactive') setTimeout(fitCanvas,0); else document.addEventListener('DOMContentLoaded', fitCanvas);
+		const trackList = document.getElementById('trackList');
+		let selected = trackList.querySelector('.track-item.selected');
+		trackList.addEventListener('click', (e)=>{
+			const item = e.target.closest('.track-item');
+			if(!item) return;
+			if(selected) selected.classList.remove('selected');
+			item.classList.add('selected');
+			selected = item;
+		});
+		document.getElementById('playSelected').addEventListener('click', ()=>{
+			if(!selected) return;
+			const mapPath = selected.getAttribute('data-map');
+			if(!mapPath) return;
+			// Navigate to the map html (relative to this file)
+			window.location.href = mapPath;
+		});
 	})();
 	</script>
-	<script src="player.js"></script>
-	<script src="gameScript.js"></script>
 </body>
 </html>
