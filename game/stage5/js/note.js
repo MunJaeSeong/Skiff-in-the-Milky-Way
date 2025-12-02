@@ -34,11 +34,23 @@
 
       // move notes
       const toRemove = [];
+      const missedNotes = [];
       for(let i=0;i<this.notes.length;i++){
         const n = this.notes[i];
         n.x -= (n.speed * (dt/1000));
         // remove if fully off left
-        if(n.x + n.w/2 < 0) toRemove.push(i);
+        if(n.x + n.w/2 < 0) {
+          // if note wasn't hit, consider it a miss and queue for miss event
+          if (!n.hit) missedNotes.push(n);
+          toRemove.push(i);
+        }
+      }
+      // dispatch miss events for missed notes before removing them
+      if (missedNotes.length && typeof window !== 'undefined' && window.dispatchEvent) {
+        for (const m of missedNotes) {
+          try { window.dispatchEvent(new CustomEvent('note:miss', { detail: { note: m } })); }
+          catch (e) { /* ignore */ }
+        }
       }
       // remove dead notes in reverse order
       for(let i=toRemove.length-1;i>=0;i--){

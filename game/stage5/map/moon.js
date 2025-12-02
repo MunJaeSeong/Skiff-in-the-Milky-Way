@@ -10,13 +10,20 @@
 (function(){
   'use strict';
 
+  // 초기화가 여러 번 실행되는 것을 방지하는 가드 플래그입니다.
+  // (예: 스크립트가 중복 로드되거나 이벤트가 두 번 바인딩되는 경우를 막기 위함)
+  let __moon_init_done = false;
+
   // init 함수: 페이지에서 필요한 캔버스와 매니저들을 찾아 초기 설정을 합니다.
   // - 게임 화면을 담당하는 `gameCanvas`
   // - 노트를 그리는 `notesCanvas` (있을 때만 사용)
   // - NoteManager가 있으면 생성해서 노트를 스폰/갱신하도록 준비합니다.
   function init(){
+    // 이미 초기화된 경우 중복 실행 방지
+    if (__moon_init_done) return;
+    __moon_init_done = true;
     const game = document.getElementById('gameCanvas');
-    if(!game) return; // 게임 캔버스가 없으면 아무 것도 안 함
+    if(!game) alert("문제: gameCanvas가 없습니다."); // 게임 캔버스가 없으면 아무 것도 안 함
     const gctx = game.getContext('2d');
     const notesCanvas = document.getElementById('notesCanvas');
     const nctx = notesCanvas ? notesCanvas.getContext('2d') : null;
@@ -27,12 +34,59 @@
     const judgments = [];
     // scoreManager: 점수와 콤보를 관리하는 간단한 객체. renderer의 drawHUD에서 사용합니다.
     const scoreManager = { score: 0, combo: 0 };
+    const COMMAND_BUFFER_CAPACITY = 4;
+    const COMMAND_DISPLAY_DURATION = 1800;
+    const DEFAULT_COMMAND_BUFFER_LABEL = '? ? ? ? [0/' + COMMAND_BUFFER_CAPACITY + ']';
+    const commandState = { lastCommandText: '', lastCommandTime: 0 };
+    let commandManager = null;
+    let advanceDistance = 0;
 
     // NoteManager가 전역에 정의되어 있고 notesCanvas가 있으면 NoteManager 인스턴스를 만듭니다.
     // 옵션으로 노트 생성 간격(spawnInterval), 노트 속도(noteSpeed), 노트 크기(noteSize)를 전달합니다.
     if (window.NoteManager && notesCanvas) {
       noteManager = new window.NoteManager(notesCanvas, { spawnInterval: 1000, noteSpeed: 240, noteSize: 24 });
     }
+
+    if (window.CommandManager) {
+      commandManager = new window.CommandManager({ windowMs: 4000, capacity: COMMAND_BUFFER_CAPACITY, overwriteOnFull: true });
+      registerStageCommands(commandManager);
+      window.stage5CommandManager = commandManager;
+    }
+
+    // 노트가 화면 왼쪽으로 지나가서 제거될 때 발생하는 이벤트를 받아서 miss 판정을 적용합니다.
+    // NoteManager는 'note:miss' 커스텀 이벤트를 발생시킵니다.
+    window.addEventListener('note:miss', (e) => {
+      try {
+        const n = e && e.detail && e.detail.note;
+        if (!n) return;
+        if (!window.judgeHit) return;
+        if (!notesCanvas) return;
+        // notesCanvas의 CSS 좌표계를 사용해 시간 차이를 계산합니다.
+        const rect = notesCanvas.getBoundingClientRect();
+        const hitX = HIT_X;
+        // timeToHitMs: (note x - hitX) / speed * 1000
+        const timeToHitMs = ((n.x - hitX) / (n.speed || 1)) * 1000;
+        const res = window.judgeHit(timeToHitMs);
+        // 판정 표시
+        const colorMap = { perfect: '#4CAF50', good: '#FFC107', miss: '#9E9E9E' };
+        const color = colorMap[res.name] || '#fff';
+        const now = performance.now();
+        const r = notesCanvas.getBoundingClientRect();
+        judgments.push({ label: res.name, x: hitX + 30, y: r.height/2, t: now, ttl: 700, color: color });
+        // 점수/콤보 업데이트
+        scoreManager.score += (res.score || 0);
+        if (res.name === 'miss') scoreManager.combo = 0;
+        else scoreManager.combo = (scoreManager.combo || 0) + 1;
+        // 체력 적용 (judge의 heal 값 * 플레이어 hpRegen)
+        if (typeof res.heal !== 'undefined' && window.NoelPlayer) {
+          const regen = Number(window.NoelPlayer.hpRegen) || 0;
+          const deltaHp = regen * Number(res.heal) || 0;
+          applyPlayerHpDelta(deltaHp);
+        }
+      } catch (err) {
+        console.warn('note:miss handler error', err);
+      }
+    });
 
     // Renderer 인스턴스: notesCanvas용과 gameCanvas용을 만듭니다.
     // notesRenderer는 노트와 히트 라인을 그리는 데 사용하고,
@@ -61,6 +115,183 @@
       }
     }
 
+    function applyPlayerHpDelta(delta){
+      if (!window.NoelPlayer) return;
+      if (typeof delta !== 'number' || delta === 0) return;
+      if (typeof window.NoelPlayer.applyHpDelta === 'function') {
+        window.NoelPlayer.applyHpDelta(delta);
+        return;
+      }
+      const currentHp = Number(window.NoelPlayer.hp) || 0;
+      const hpMax = Number(window.NoelPlayer.hpMax) || 1000;
+      const newHp = Math.max(0, Math.min(hpMax, currentHp + delta));
+      window.NoelPlayer.hp = newHp;
+    }
+
+    function formatCommandBuffer(){
+      if (!commandManager) return DEFAULT_COMMAND_BUFFER_LABEL;
+      const entries = commandManager.getBufferEntries();
+      const placeholders = new Array(COMMAND_BUFFER_CAPACITY).fill('?');
+      const fillStart = Math.max(0, COMMAND_BUFFER_CAPACITY - entries.length);
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        const token = entry && entry.key ? String(entry.key).trim().toUpperCase() : '?';
+        placeholders[fillStart + i] = token || '?';
+      }
+      return placeholders.join(' ') + ' [' + entries.length + '/' + COMMAND_BUFFER_CAPACITY + ']';
+    }
+
+    function setLastCommandText(text){
+      commandState.lastCommandText = text || '';
+      commandState.lastCommandTime = performance.now();
+    }
+
+    function registerStageCommands(cm){
+      if (!cm) return;
+      const defs = [
+        { name: 'attack', seq: ['Z','Z','Z','X'] },
+        { name: 'defend', seq: ['X','X','Z','X'] },
+        { name: 'advance', seq: ['Z','Z','X','X'] }
+      ];
+      defs.forEach(def => cm.register(def.name, def.seq, handleCommandResolution));
+    }
+
+    function handleCommandResolution(payload){
+      if (!payload || !payload.seq) return;
+      const seqLength = payload.seq.length;
+      const entries = Array.isArray(payload.entries) ? payload.entries.slice(-seqLength) : [];
+      if (entries.length < seqLength) return;
+      const hasMiss = entries.some(entry => !entry || !entry.judgement || entry.judgement.name === 'miss');
+      if (hasMiss) {
+        if (commandManager) commandManager.reset();
+        setLastCommandText('');
+        return;
+      }
+
+      const snapshots = entries.map(entry => ({
+        key: entry.key,
+        t: entry.t,
+        judgement: entry.judgement ? Object.assign({}, entry.judgement) : null
+      }));
+      const detail = {
+        command: payload.name,
+        entries: snapshots,
+        judgements: snapshots.map(s => s.judgement ? s.judgement.name : null)
+      };
+      let label = '';
+
+      switch (payload.name) {
+        case 'attack': {
+          const player = window.NoelPlayer || {};
+          const baseAttack = Number(player.attack) || 0;
+          let totalDamage = baseAttack || 0;
+          entries.forEach(entry => {
+            const multiplier = entry.judgement && typeof entry.judgement.attack === 'number' ? entry.judgement.attack : 1;
+            totalDamage *= multiplier;
+          });
+          const displayDamage = Math.round(totalDamage * 10) / 10;
+          detail.damage = totalDamage;
+          detail.damageDisplay = displayDamage;
+          label = 'ATTACK ' + displayDamage;
+          break;
+        }
+        case 'defend': {
+          if (window.NoelPlayer) window.NoelPlayer.defending = true;
+          detail.defending = true;
+          label = 'DEFEND';
+          break;
+        }
+        case 'advance': {
+          const player = window.NoelPlayer;
+          let distance = 0;
+          if (player) {
+            distance = Number(player.speed) || 0;
+            const rect = game.getBoundingClientRect();
+            const margin = 8;
+            const currentX = player.x || 0;
+            const targetX = Math.max(margin, Math.min(rect.width - margin, currentX + distance));
+            player.setPosition(targetX, player.y || 0);
+            advanceDistance += distance;
+          }
+          detail.distance = distance;
+          detail.totalDistance = advanceDistance;
+          label = 'ADVANCE +' + Math.round(distance);
+          break;
+        }
+        default: {
+          label = (payload.name || '').toUpperCase();
+        }
+      }
+
+      if (label) setLastCommandText(label);
+      try {
+        window.dispatchEvent(new CustomEvent('game:command', { detail }));
+      } catch (err) {
+        console.warn('game:command dispatch failed', err);
+      }
+      if (commandManager) commandManager.reset();
+    }
+
+    function attemptNoteHit(keyToken, options = {}){
+      if (!window.judgeHit) return null;
+      const notes = (noteManager && noteManager.notes) ? noteManager.notes : [];
+      const hitX = HIT_X;
+      let best = null;
+      if (notes.length){
+        let bestAbsMs = Infinity;
+        for (const n of notes){
+          if (n.hit) continue;
+          const speed = n.speed || 0;
+          if (!speed) continue;
+          const timeToHitMs = ((n.x - hitX) / speed) * 1000;
+          const absMs = Math.abs(timeToHitMs);
+          if (absMs < bestAbsMs){
+            bestAbsMs = absMs;
+            best = { note: n, dt: timeToHitMs };
+          }
+        }
+      }
+
+      const dt = best ? best.dt : Number.POSITIVE_INFINITY;
+      const res = window.judgeHit(dt);
+      const colorMap = { perfect: '#4CAF50', good: '#FFC107', miss: '#9E9E9E' };
+      const color = colorMap[res.name] || '#fff';
+      const nowTs = performance.now();
+
+      if (notesCanvas){
+        const rect = notesCanvas.getBoundingClientRect();
+        judgments.push({ label: res.name, x: hitX + 30, y: rect.height/2, t: nowTs, ttl: 700, color: color });
+      }
+
+      scoreManager.score += (res.score || 0);
+      if (res.name === 'miss') scoreManager.combo = 0;
+      else scoreManager.combo = (scoreManager.combo || 0) + 1;
+
+      if (typeof res.heal !== 'undefined' && window.NoelPlayer){
+        const regen = Number(window.NoelPlayer.hpRegen) || 0;
+        const deltaHp = regen * Number(res.heal) || 0;
+        const applyPositive = options.allowPositiveHeal !== false && deltaHp > 0;
+        if (deltaHp < 0 || applyPositive){
+          applyPlayerHpDelta(deltaHp);
+        }
+      }
+
+      if (best && best.note && res.name !== 'miss') {
+        best.note.hit = true;
+      }
+
+      if (options && typeof options.onResult === 'function') {
+        try {
+          const timeStamp = typeof options.time === 'number' ? options.time : nowTs;
+          options.onResult({ key: keyToken, time: timeStamp, judgement: res, dt: dt, note: best ? best.note : null });
+        } catch (err) {
+          console.warn('attemptNoteHit onResult error', err);
+        }
+      }
+
+      return { judgement: res, note: best ? best.note : null, dt };
+    }
+
     // 키 입력 상태를 추적하기 위한 객체입니다.
     // LEFT/RIGHT/UP/DOWN 각각이 눌려 있는지(true) 아닌지(false)를 저장합니다.
     const keyState = { LEFT: false, RIGHT: false, UP: false, DOWN: false };
@@ -78,49 +309,25 @@
         if (k === 'LEFT' || k === 'RIGHT' || k === 'UP' || k === 'DOWN') {
           keyState[k] = true;
         } else if (k === 'SPACE') {
-          // 스페이스는 '히트' 키로 사용합니다. 가장 가까운(시간상으로) 노트를 찾아 판정합니다.
-          if (noteManager && noteManager.notes && noteManager.notes.length) {
-            const notes = noteManager.notes;
-            const rect = notesCanvas.getBoundingClientRect();
-            // 히트 라인 위치는 상수로 지정
-            const hitX = HIT_X;
-
-            // 노트마다 히트까지 남은 시간(밀리초)을 계산해서 가장 가깝게 맞출 수 있는 노트를 찾습니다.
-            // timeToHitMs는 (노트 x 위치 - 히트 위치) / 속도 로 계산합니다. 양수면 아직 미래에 도착할 노트, 음수면 이미 지난 노트입니다.
-            let best = null;
-            let bestAbsMs = Infinity;
-            const now = performance.now();
-            for (const n of notes) {
-              if (n.hit) continue; // 이미 맞춘 노트는 건너뜀
-              const timeToHitMs = ((n.x - hitX) / n.speed) * 1000; // positive = future, negative = past
-              const absMs = Math.abs(timeToHitMs);
-              if (absMs < bestAbsMs) {
-                bestAbsMs = absMs;
-                best = { note: n, dt: timeToHitMs };
-              }
-            }
-
-            // 가장 가까운 노트가 있으면 judgeHit(판정 함수)를 호출해서 결과를 얻고 화면에 표시합니다.
-            if (best && window.judgeHit) {
-              const res = window.judgeHit(best.dt);
-              // 판정에 따른 색상 맵
-              const colorMap = { perfect: '#4CAF50', good: '#FFC107', miss: '#9E9E9E' };
-              const color = colorMap[res.name] || '#fff';
-              // 판정 표시를 judgments 배열에 추가합니다. ttl은 표시 지속 시간(ms).
-              judgments.push({ label: res.name, x: hitX + 30, y: rect.height/2, t: now, ttl: 700, color: color });
-              // 점수/콤보 업데이트
-              scoreManager.score += (res.score || 0);
-              if (res.name === 'miss') scoreManager.combo = 0;
-              else scoreManager.combo = (scoreManager.combo || 0) + 1;
-              // miss가 아니면(즉 판정이 성공이면) 노트에 hit 플래그를 달아서 제거/무시하도록 합니다.
-              if (res.name !== 'miss') {
-                best.note.hit = true;
-              }
-            }
-          }
+          attemptNoteHit('SPACE', { allowPositiveHeal: true, time: evt.time });
         } else if (k === 'Z' || k === 'X') {
-          // Z/X키는 현재는 동작 자리만 남겨둔 상태입니다(플레이어 액션용).
-          console.log('action', k);
+          const keyToken = k;
+          attemptNoteHit(keyToken, {
+            allowPositiveHeal: false,
+            time: evt.time,
+            onResult: ({ judgement, time }) => {
+              if (!commandManager) return;
+              if (!judgement) return;
+              const name = String(judgement.name || '').toLowerCase();
+              const isSuccess = name === 'perfect' || name === 'good' || name === 'great';
+              if (!isSuccess) {
+                commandManager.reset();
+                setLastCommandText('');
+                return;
+              }
+              commandManager.push({ key: keyToken, t: time, judgement });
+            }
+          });
         }
       });
 
@@ -244,8 +451,62 @@
         // 플레이어의 내부 상태를 갱신하고 그립니다.
         window.NoelPlayer.update(dt);
         window.NoelPlayer.draw(gctx);
+        const bufferLabel = formatCommandBuffer();
+        let commandLabel = '';
+        if (commandState.lastCommandText) {
+          if ((now - commandState.lastCommandTime) <= COMMAND_DISPLAY_DURATION) {
+            commandLabel = commandState.lastCommandText;
+          } else {
+            commandState.lastCommandText = '';
+          }
+        }
         // HUD는 gameRenderer로 그립니다 (gameCanvas 위에 점수/콤보 표시)
-        if (gameRenderer) gameRenderer.drawHUD(scoreManager);
+        if (gameRenderer) {
+          gameRenderer.drawHUD(scoreManager, { bufferText: bufferLabel, commandText: commandLabel });
+        }
+        // 화면 하단에 플레이어 체력 바(녹색)를 표시합니다.
+        if (gctx && window.NoelPlayer) {
+          try {
+            // canvas는 setTransform(dpr,0,0,dpr,0,0) 처리가 되어 있으므로
+            // 레이아웃 및 위치 계산은 CSS 픽셀 단위(getBoundingClientRect)를 사용해야 합니다.
+            const rect = game.getBoundingClientRect();
+            const canvasW = rect.width || 800;
+            const canvasH = rect.height || 600;
+            const padding = 6;
+            const barHeight = Math.max(8, Math.floor(canvasH * 0.04));
+            const barW = Math.max(100, canvasW - padding * 2);
+            let hp = Number(window.NoelPlayer.hp) || 0;
+            // hpMax 우선순위: NoelPlayer.hpMax -> 1000(fallback)
+            const hpMax = Number(window.NoelPlayer.hpMax) || 1000;
+            // hp를 상한/하한으로 클램프
+            const clampedHp = Math.max(0, Math.min(hpMax, hp));
+            const ratio = hpMax > 0 ? (clampedHp / hpMax) : 0;
+            const x = padding;
+            const y = canvasH - barHeight - padding;
+
+            gctx.save();
+            // 배경 바
+            gctx.fillStyle = '#222';
+            gctx.fillRect(x, y, barW, barHeight);
+            // 체력 채움(녹색)
+            gctx.fillStyle = '#4CAF50';
+            gctx.fillRect(x, y, Math.floor(barW * ratio), barHeight);
+            // 외곽선
+            gctx.strokeStyle = '#000';
+            gctx.lineWidth = 1;
+            gctx.strokeRect(x + 0.5, y + 0.5, barW - 1, barHeight - 1);
+            // 텍스트 (숫자 표시)
+            gctx.fillStyle = '#fff';
+            gctx.font = Math.max(12, Math.floor(barHeight * 0.8)) + 'px sans-serif';
+            gctx.textAlign = 'center';
+            gctx.textBaseline = 'middle';
+            gctx.fillText(Math.floor(clampedHp) + '/' + hpMax, x + barW / 2, y + barHeight / 2);
+            gctx.restore();
+          } catch (e) {
+            // 안전을 위해 예외는 무시하고 콘솔에 로깅
+            console.warn('HP bar draw failed', e);
+          }
+        }
       }
 
       // 다음 프레임 예약
@@ -256,7 +517,7 @@
 
   // 문서가 아직 로딩 중이면 DOMContentLoaded 이벤트에서 init을 호출하고,
   // 이미 로드되었다면 바로 init을 호출합니다.
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
   else init();
 
 })();

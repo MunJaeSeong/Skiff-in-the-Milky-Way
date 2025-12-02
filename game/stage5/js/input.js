@@ -68,6 +68,10 @@
         // 예: cb({ key: 'Z', time: 31234.123 })
         this.listeners.forEach(cb => cb({ key: mapped, time: ts }));
 
+        // 전역적으로 키 입력을 알리기 위한 커스텀 이벤트도 발생시킵니다.
+        // 다른 시스템(예: 공격 처리)에서 전역 이벤트를 구독할 수 있게 합니다.
+        try { window.dispatchEvent(new CustomEvent('game:key', { detail: { key: mapped, time: ts } })); } catch (e) { /* ignore */ }
+
         // 브라우저의 기본 동작을 막습니다. 예를 들어 스페이스로 인해 페이지가 아래로 스크롤되는 것을 막습니다.
         if (e.preventDefault) e.preventDefault();
       }

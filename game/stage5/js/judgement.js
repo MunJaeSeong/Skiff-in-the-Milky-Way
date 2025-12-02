@@ -29,13 +29,13 @@
     const d = Math.abs(deltaMs);
 
     // 오차가 가장 작으면 perfect 판정.
-    if (d <= PERFECT) return { name: 'perfect', score: 1000 };
+    if (d <= PERFECT) return { name: 'perfect', attack : 2 , heal  : 3, score: 500 };
     // 더 넓은 범위면 good 판정.
-    if (d <= GOOD) return { name: 'good', score: 500 };
-    // MISS 범위 안이면 miss 판정(점수 0).
-    if (d <= MISS) return { name: 'miss', score: 0 };
+    if (d <= GOOD) return { name: 'good', attack : 1.3 , heal  : 1, score: 150 };
+    // MISS 범위 안이면 miss 판정(점수 0.3).
+    if (d <= MISS) return { name: 'miss', attack : 0.3 , heal  : -5, score: 0 };
     // 위의 범위를 모두 벗어나면 사실상 '완전 빗나감'으로 처리합니다. 여기서는 miss로 처리.
-    return { name: 'miss', score: 0 };
+    return { name: 'miss', attack : 0.3 , heal  : -5, score: 0 };
   }
 
   // judge 함수를 전역(window)에 연결해서 다른 코드에서 사용할 수 있게 합니다.

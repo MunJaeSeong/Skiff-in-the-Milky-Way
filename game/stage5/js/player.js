@@ -40,6 +40,31 @@
     direction: 'idle', // 'idle' | 'back' | 'front' | 'left' | 'right'
     frameIndex: 0,
     frameTimer: 0,
+    // 전투/상태 관련 속성
+    attack: 10, // 공격력
+    defending: false, // 방어 여부 (boolean)
+    hpMax: 1000, // 최대 체력
+    hp: 1000, // 현재 체력
+    speed: 5, // 이동 속도
+    hpRegen: 10, // 체력 회복력 (단위: 초당 값 등 필요시 외부에서 해석)
+
+    // HP 조작 헬퍼: amount는 양수(회복) 또는 음수(대미지)
+    heal(amount) {
+      if (typeof amount !== 'number' || amount === 0) return;
+      this.hp = Math.min(this.hpMax, this.hp + amount);
+    },
+    takeDamage(amount) {
+      if (typeof amount !== 'number' || amount === 0) return;
+      // amount는 양수 값으로 기대
+      const dmg = Math.abs(amount);
+      this.hp = Math.max(0, this.hp - dmg);
+    },
+    // 범용: 음수면 데미지, 양수면 회복
+    applyHpDelta(delta) {
+      if (typeof delta !== 'number' || delta === 0) return;
+      if (delta > 0) this.heal(delta);
+      else this.takeDamage(Math.abs(delta));
+    },
 
     init() {
       const keys = ['idle', 'back', 'front', 'left', 'right'];

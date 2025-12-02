@@ -97,15 +97,48 @@
     }
 
     // HUD(점수/콤보) 그리기: 게임 화면(보통 풍부한 공간을 가진 canvas)에 사용
-    drawHUD(scoreManager) {
+    drawHUD(scoreManager, extra = {}) {
       const ctx = this.ctx;
       // HUD는 CSS 픽셀 단위를 기준으로 텍스트를 배치합니다.
       const rect = this.canvas.getBoundingClientRect();
       ctx.save();
-      ctx.fillStyle = '#fff';
       ctx.font = '18px sans-serif';
       ctx.textAlign = 'left';
-      ctx.fillText('Score: ' + (scoreManager.score || 0), 14, 26);
+      const baseY = 26;
+      const leftX = 14;
+      const scoreValue = scoreManager && typeof scoreManager.score === 'number' ? scoreManager.score : 0;
+      const comboValue = scoreManager && typeof scoreManager.combo === 'number' ? scoreManager.combo : 0;
+      const scoreLabel = 'Score: ' + scoreValue;
+
+      ctx.fillStyle = '#fff';
+      ctx.fillText(scoreLabel, leftX, baseY);
+
+      const rawBuffer = extra.commandBuffer || extra.bufferText || '';
+      const bufferText = rawBuffer ? ('Buffer: ' + rawBuffer) : '';
+      const commandText = extra.commandText ? ('Cmd: ' + extra.commandText) : '';
+      const gap = 12;
+
+      if (bufferText) {
+        ctx.fillStyle = '#4FC3F7';
+        const scoreWidth = ctx.measureText(scoreLabel).width;
+        const bufferX = leftX + scoreWidth + gap;
+        ctx.fillText(bufferText, bufferX, baseY);
+        if (commandText) {
+          ctx.fillStyle = '#F44336';
+          const bufferWidth = ctx.measureText(bufferText).width;
+          const commandX = bufferX + bufferWidth + gap;
+          ctx.fillText(commandText, commandX, baseY);
+        }
+      } else if (commandText) {
+        ctx.fillStyle = '#F44336';
+        const scoreWidth = ctx.measureText(scoreLabel).width;
+        const commandX = leftX + scoreWidth + gap;
+        ctx.fillText(commandText, commandX, baseY);
+      }
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#fff';
+      ctx.fillText('Combo: ' + comboValue, rect.width - leftX, baseY);
       ctx.textAlign = 'right';
       ctx.fillText('Combo: ' + (scoreManager.combo || 0), rect.width - 14, 26);
       ctx.restore();
