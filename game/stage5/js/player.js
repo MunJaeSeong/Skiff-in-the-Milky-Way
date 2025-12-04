@@ -4,14 +4,18 @@
   // Noel용 아틀라스 기반 플레이어 애니메이터 (스테이지 5)
   const NoelPlayer = {
     // `move/` 폴더의 아틀라스 PNG를 우선 사용하고 가로/세로 그리드로 프레임을 자릅니다
-    // 경로는 `game/stage5/stage5.html`을 기준으로 합니다
-    imgPaths: {
-      idle: '../../../assets/character/Noel/Noel_SD.png',
-      back: '../../../assets/character/Noel/move/Noel_SD_walking_back_atlas.png',
-      front: '../../../assets/character/Noel/move/Noel_SD_walking_front_atlas.png',
-      left: '../../../assets/character/Noel/move/Noel_SD_walking_left_atlas.png',
-      right: '../../../assets/character/Noel/move/Noel_SD_walking_right_atlas.png'
-    },
+    // 이미지 기본 경로는 페이지 위치에 따라 달라지므로 전역 `window.ASSET_BASE`가 설정되어 있으면 그것을 사용합니다.
+    // 기존 기본값은 이전과 동일하게 '../../../assets'로 유지합니다.
+    imgPaths: (function(){
+      const base = (typeof window !== 'undefined' && window.ASSET_BASE) ? window.ASSET_BASE : '../../../assets';
+      return {
+        idle: base + '/character/Noel/Noel_SD.png',
+        back: base + '/character/Noel/move/Noel_SD_walking_back_atlas.png',
+        front: base + '/character/Noel/move/Noel_SD_walking_front_atlas.png',
+        left: base + '/character/Noel/move/Noel_SD_walking_left_atlas.png',
+        right: base + '/character/Noel/move/Noel_SD_walking_right_atlas.png'
+      };
+    })(),
 
     // 아틀라스별 예상 프레임 수와 그리드 레이아웃
     // 앞/뒤(front/back): 4열 x 8행 = 32프레임

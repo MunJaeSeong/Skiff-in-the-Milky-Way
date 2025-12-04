@@ -3,109 +3,58 @@
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width,initial-scale=1" />
-	<title>Stage 5</title>
-	<link rel="stylesheet" href="stage5.css">
+	<title>Moon - Stage</title>
+	<style>
+		html,body{height:100%;margin:0}
+		/* stage-wrap uses parent's 100% height so canvases percentage heights sum to 100% */
+		#stage-wrap{display:flex;flex-direction:column;height:100%}
+		canvas{display:block;width:100%;}
+		#gameCanvas{height:80%;background:#000}
+		#notesCanvas{height:20%;background:transparent}
+	</style>
 </head>
 <body>
-	<div id="stage5-wrap">
-		<div class="card">
-			<div class="art" id="albumArt">Main BGM</div>
-			<h2 class="title" id="trackTitle">Main BGM</h2>
-			<div class="badges">
-				<div class="badge">NORMAL: ★☆☆</div>
-				<div class="badge">HARD: ★★☆</div>
-				<div class="badge">MAX: ★★★</div>
-			</div>
-
-			<div class="stats">
-				<div class="stat">
-					<div style="font-size:12px;color:var(--muted)">Current Combo</div>
-					<div style="font-size:20px">0</div>
-				</div>
-				<div class="stat">
-					<div style="font-size:12px;color:var(--muted)">Best Score</div>
-					<div style="font-size:20px">0</div>
-				</div>
-			</div>
-
-			<div class="meta">
-				<div class="row"><div>아티스트</div><div id="artist">Skiff Orchestra</div></div>
-				<div class="row"><div>BPM</div><div id="bpm">120</div></div>
-				<div class="row"><div>길이</div><div id="length">1:55</div></div>
-			</div>
-		</div>
-
-		<div class="right-panel">
-			<div class="card" style="padding:1.2rem">
-				<div style="font-weight:800;font-size:18px;margin-bottom:0.6rem">선택 정보</div>
-				<div style="color:var(--muted);margin-bottom:0.8rem">차트: normal, hard, max</div>
-
-				<div class="filters">
-					<button class="filter-btn">All Track</button>
-					<button class="filter-btn">Playable</button>
-					<button class="filter-btn">Favorite</button>
-				</div>
-
-				<div class="track-list" id="trackList">
-					<div class="track-item selected" data-map="map/moon.html">
-						<div class="thumb">Main</div>
-						<div class="info">
-							<div class="name">moon</div>
-							<div style="color:var(--muted);font-size:13px">Skiff Orchestra · 3 charts</div>
-						</div>
-					</div>
-
-					<div class="track-item" data-map="map/stage3.html">
-						<div class="thumb">Stage</div>
-						<div class="info">
-							<div class="name">Stage 3 BGM</div>
-							<div style="color:var(--muted);font-size:13px">Stage Composer · 3 charts</div>
-						</div>
-					</div>
-				</div>
-
-				<div class="actions">
-					<button class="play-btn" id="playSelected">Play</button>
-					<button class="secondary-btn" id="backBtn">Back</button>
-				</div>
-			</div>
-
-			<div class="card" style="padding:1.2rem;color:var(--muted);font-size:13px">키: D F J K 를 사용하세요. 모바일/터치는 미지원(간단 데모).</div>
-		</div>
+	<div id="stage-wrap">
+		<canvas id="gameCanvas" aria-label="Game Canvas"></canvas>
+		<canvas id="notesCanvas" aria-label="Notes Canvas"></canvas>
 	</div>
-	<!-- 공통 유틸/오버레이 -->
-	<script src="../util.js"></script>
-	<script src="../clear.js"></script>
-	<script src="../fail.js"></script>
 
-	<!-- Stage5 rhythm modules -->
-	<script src="audio.js"></script>
-	<script src="noteData.js"></script>
-	<script src="renderer.js"></script>
-	<script src="input.js"></script>
-	<script src="judgement.js"></script>
-	<script src="score.js"></script>
-	<script src="gameScript.js"></script>
+	<!-- 공통 유틸/오버레이 (paths relative to this file) -->
+	<script src="../../util.js"></script>
+	<script src="../../clear.js"></script>
+	<script src="../../fail.js"></script>
 
+	<!-- Stage5 modules (parent directory) -->
+	<!-- 페이지 기준으로 assets 경로를 지정: stage5.html은 game/stage5 폴더에 있으므로 assets는 ../../assets -->
+	<script>window.ASSET_BASE = '../../assets';</script>
+	<script src="./js/input.js"></script>
+	<script src="./js/player.js"></script>
+	<script src="./js/command.js"></script>
+	<script src="./js/judgement.js"></script>
+	<script src="./js/renderer.js"></script>
+	<script src="./js/note.js"></script>
+	<script src="./js/moon.js"></script>
+
+	<!-- Resize helper to keep canvas pixel sizes in sync -->
 	<script>
-	// Track selection and Play handling: navigate to selected map HTML
 	(function(){
-		const trackList = document.getElementById('trackList');
-		let selected = trackList.querySelector('.track-item.selected');
-		trackList.addEventListener('click', (e)=>{
-			const item = e.target.closest('.track-item');
-			if(!item) return;
-			if(selected) selected.classList.remove('selected');
-			item.classList.add('selected');
-			selected = item;
-		});
-		document.getElementById('playSelected').addEventListener('click', ()=>{
-			if(!selected) return;
-			const mapPath = selected.getAttribute('data-map');
-			if(!mapPath) return;
-			// Navigate to the map html (relative to this file)
-			window.location.href = mapPath;
-		});
+		function resizeCanvases(){
+			const dpr = window.devicePixelRatio || 1;
+			const game = document.getElementById('gameCanvas');
+			const notes = document.getElementById('notesCanvas');
+			const gameRect = game.getBoundingClientRect();
+			const notesRect = notes.getBoundingClientRect();
+			game.width = Math.round(gameRect.width * dpr);
+			game.height = Math.round(gameRect.height * dpr);
+			notes.width = Math.round(notesRect.width * dpr);
+			notes.height = Math.round(notesRect.height * dpr);
+			const gctx = game.getContext('2d');
+			const nctx = notes.getContext('2d');
+			if (gctx) gctx.setTransform(dpr,0,0,dpr,0,0);
+			if (nctx) nctx.setTransform(dpr,0,0,dpr,0,0);
+		}
+		window.addEventListener('resize', resizeCanvases);
+		window.addEventListener('load', resizeCanvases);
 	})();
 	</script>
 </body>
