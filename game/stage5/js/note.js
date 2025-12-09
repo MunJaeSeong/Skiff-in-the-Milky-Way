@@ -1,7 +1,9 @@
 (function(){
   'use strict';
-
-  // Simple Note Manager for right-to-left notes in the notesCanvas
+  // NoteManager: 오른쪽에서 왼쪽으로 이동하는 노트들을 만들고 관리합니다.
+  // - spawn(): 새 노트를 오른쪽 끝에 만들어서 배열에 넣습니다.
+  // - update(dt): 노트 위치를 갱신하고, 화면 밖으로 나간 노트는 제거합니다.
+  // - draw(): 노트를 캔버스에 그려줍니다.
   class NoteManager {
     constructor(canvas, opts){
       this.canvas = canvas;
@@ -14,7 +16,8 @@
       this._spawnTimer = 0;
     }
 
-    // spawn a blue note at right edge, vertically centered
+    // spawn(): 오른쪽 화면 가장자리 바깥에 새 노트를 만듭니다.
+    // - 노트는 화면 가운데 세로 위치에 생성되고, notes 배열에 추가됩니다.
     spawn(){
       if(!this.canvas) return;
       const rect = this.canvas.getBoundingClientRect();
@@ -40,7 +43,8 @@
         n.x -= (n.speed * (dt/1000));
         // remove if fully off left
         if(n.x + n.w/2 < 0) {
-          // if note wasn't hit, consider it a miss and queue for miss event
+          // 화면 왼쪽으로 완전히 나가면 제거합니다.
+          // 아직 맞지 않은 노트면 miss로 간주하여 이벤트로 알립니다.
           if (!n.hit) missedNotes.push(n);
           toRemove.push(i);
         }
@@ -58,13 +62,13 @@
       }
     }
 
+    // draw(): 노트들을 캔버스에 그립니다.
+    // - 간단한 파란색 둥근 사각형으로 표시합니다.
     draw(){
       if(!this.ctx || !this.canvas) return;
-      // clear (use device pixel size as in other files)
       this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
 
       this.ctx.save();
-      // draw blue rounded rect notes
       this.ctx.fillStyle = '#3aa0ff';
       for(const n of this.notes){
         const hw = n.w/2;

@@ -1,83 +1,96 @@
 /*
-  moon.js
+  gameScript.js
 
-  이 파일은 무대(map) 스크립트로, 화면에 플레이어 캐릭터(NoelPlayer)를 초기화하고
-  간단한 업데이트-드로우(업데이트와 그리기) 루프를 실행합니다.
+  이 파일은 스테이지(무대)에서 게임을 실행하는 큰 흐름을 담고 있습니다.
+  중학생도 이해할 수 있게 쉬운 말로 설명합니다.
 
-  아래 영어 주석은 한국어로 번역하고, 각 부분에 중학생도 이해할 수 있게 추가 설명을 붙였습니다.
+  주요 역할 요약:
+  - 화면의 캔버스 요소를 찾아서 그림을 그릴 준비를 합니다.
+  - NoteManager(노트들), InputHandler(입력), CommandManager(콤보명령) 등을 연결합니다.
+  - 매 프레임마다 게임 상태를 업데이트(update)하고 화면에 그립니다(draw)도록 루프를 만듭니다.
+
+  간단한 비유: 이 파일은 연극의 무대 감독과 같습니다. 배우(NoelPlayer)와 소품(노트),
+  관객(점수판)을 연결하고, 매 장면(프레임)을 순서대로 보여줍니다.
 */
 
 (function(){
   'use strict';
 
-  // 초기화가 여러 번 실행되는 것을 방지하는 가드 플래그입니다.
-  // (예: 스크립트가 중복 로드되거나 이벤트가 두 번 바인딩되는 경우를 막기 위함)
+  // 한 번만 초기화되도록 하는 표시입니다.
+  // 같은 스크립트가 중복으로 실행되는 것을 막기 위해 씁니다.
   let __moon_init_done = false;
 
-  // init 함수: 페이지에서 필요한 캔버스와 매니저들을 찾아 초기 설정을 합니다.
-  // - 게임 화면을 담당하는 `gameCanvas`
-  // - 노트를 그리는 `notesCanvas` (있을 때만 사용)
-  // - NoteManager가 있으면 생성해서 노트를 스폰/갱신하도록 준비합니다.
+  // init(): 필요한 요소들을 찾고 초기 상태를 설정합니다.
+  // - 캔버스(게임 화면, 노트용)를 찾고 2D 컨텍스트를 얻습니다.
+  // - NoteManager, CommandManager, InputHandler가 있으면 연결합니다.
   function init(){
-    // 이미 초기화된 경우 중복 실행 방지
-    if (__moon_init_done) return;
+    if (__moon_init_done) return; // 이미 초기화되었으면 다시 하지 않음
     __moon_init_done = true;
+
     const game = document.getElementById('gameCanvas');
-    if(!game) alert("문제: gameCanvas가 없습니다."); // 게임 캔버스가 없으면 아무 것도 안 함
+    if(!game) alert("문제: gameCanvas가 없습니다."); // 게임을 그릴 영역이 없으면 경고
     const gctx = game.getContext('2d');
+
+    // 노트(화살표 같은 것)를 그릴 별도의 캔버스가 있으면 사용합니다.
     const notesCanvas = document.getElementById('notesCanvas');
     const nctx = notesCanvas ? notesCanvas.getContext('2d') : null;
-    // 히트 라인 X 좌표(CSS 픽셀). 값을 올려주면 판정선을 오른쪽으로 이동합니다.
-    const HIT_X = 120; // 이전에는 40이었음
+
+    // 히트 라인 x 좌표입니다. 이 위치에서 판정을 합니다.
+    const HIT_X = 120;
+
+    // 노트 관리자, 판정 이펙트(화면에 잠깐 보이는 텍스트), 점수 정보를 준비합니다.
     let noteManager = null;
-    // judgments는 화면에 보여줄 판정(퍼펙트/굿/미스) 표시 정보들을 저장하는 배열입니다.
-    const judgments = [];
-    // scoreManager: 점수와 콤보를 관리하는 간단한 객체. renderer의 drawHUD에서 사용합니다.
+    const judgments = []; // 판정 효과들을 잠시 저장하는 배열
     const scoreManager = { score: 0, combo: 0 };
+
+    // 커맨드 관련 설정
     const COMMAND_BUFFER_CAPACITY = 4;
-    const COMMAND_DISPLAY_DURATION = 1800;
+    const COMMAND_DISPLAY_DURATION = 1800; // 최근 명령 표시 유지 시간(ms)
     const DEFAULT_COMMAND_BUFFER_LABEL = '? ? ? ? [0/' + COMMAND_BUFFER_CAPACITY + ']';
     const commandState = { lastCommandText: '', lastCommandTime: 0 };
     let commandManager = null;
     let advanceDistance = 0;
 
-    // NoteManager가 전역에 정의되어 있고 notesCanvas가 있으면 NoteManager 인스턴스를 만듭니다.
-    // 옵션으로 노트 생성 간격(spawnInterval), 노트 속도(noteSpeed), 노트 크기(noteSize)를 전달합니다.
+    // NoteManager가 있으면 인스턴스화합니다. (notesCanvas가 필요)
     if (window.NoteManager && notesCanvas) {
+      // spawnInterval: 노트가 생성되는 간격, noteSpeed: 노트 이동 속도
       noteManager = new window.NoteManager(notesCanvas, { spawnInterval: 1000, noteSpeed: 240, noteSize: 24 });
     }
 
+    // CommandManager가 있으면 기본 명령들을 등록합니다.
     if (window.CommandManager) {
       commandManager = new window.CommandManager({ windowMs: 4000, capacity: COMMAND_BUFFER_CAPACITY, overwriteOnFull: true });
       registerStageCommands(commandManager);
-      window.stage5CommandManager = commandManager;
+      window.stage5CommandManager = commandManager; // 디버그용 전역 보관
     }
 
-    // 노트가 화면 왼쪽으로 지나가서 제거될 때 발생하는 이벤트를 받아서 miss 판정을 적용합니다.
-    // NoteManager는 'note:miss' 커스텀 이벤트를 발생시킵니다.
+    // 노트가 화면 왼쪽으로 지나가면 'miss' 이벤트를 받습니다.
+    // NoteManager는 맞지 않은(놓친) 노트에 대해 'note:miss' 이벤트를 보냅니다.
     window.addEventListener('note:miss', (e) => {
       try {
         const n = e && e.detail && e.detail.note;
         if (!n) return;
-        if (!window.judgeHit) return;
+        if (!window.judgeHit) return; // 판정 함수가 없으면 처리 중단
         if (!notesCanvas) return;
-        // notesCanvas의 CSS 좌표계를 사용해 시간 차이를 계산합니다.
-        const rect = notesCanvas.getBoundingClientRect();
+
+        // 노트가 히트 라인과 얼마나 차이나는지 계산해서 판정함
         const hitX = HIT_X;
-        // timeToHitMs: (note x - hitX) / speed * 1000
-        const timeToHitMs = ((n.x - hitX) / (n.speed || 1)) * 1000;
+        const timeToHitMs = ((n.x - hitX) / (n.speed || 1)) * 1000; // ms 단위로 변환
         const res = window.judgeHit(timeToHitMs);
-        // 판정 표시
+
+        // 판정 효과를 화면에 남기기 위해 judgments 배열에 추가
         const colorMap = { perfect: '#4CAF50', good: '#FFC107', miss: '#9E9E9E' };
         const color = colorMap[res.name] || '#fff';
         const now = performance.now();
         const r = notesCanvas.getBoundingClientRect();
         judgments.push({ label: res.name, x: hitX + 30, y: r.height/2, t: now, ttl: 700, color: color });
-        // 점수/콤보 업데이트
+
+        // 점수와 콤보 업데이트
         scoreManager.score += (res.score || 0);
         if (res.name === 'miss') scoreManager.combo = 0;
         else scoreManager.combo = (scoreManager.combo || 0) + 1;
-        // 체력 적용 (judge의 heal 값 * 플레이어 hpRegen)
+
+        // 판정으로 회복(heal) 수치가 있으면 플레이어 체력에 적용
         if (typeof res.heal !== 'undefined' && window.NoelPlayer) {
           const regen = Number(window.NoelPlayer.hpRegen) || 0;
           const deltaHp = regen * Number(res.heal) || 0;
@@ -88,33 +101,29 @@
       }
     });
 
-    // Renderer 인스턴스: notesCanvas용과 gameCanvas용을 만듭니다.
-    // notesRenderer는 노트와 히트 라인을 그리는 데 사용하고,
-    // gameRenderer는 HUD(점수/콤보)만 그리기 위해 사용합니다.
+    // 화면을 그리는 도구(렌더러)가 있으면 생성합니다.
     const notesRenderer = (window.StageRenderer && notesCanvas) ? new window.StageRenderer(notesCanvas) : null;
     const gameRenderer = (window.StageRenderer && game) ? new window.StageRenderer(game) : null;
 
-    // 플레이어 모듈(NoelPlayer)이 있으면 초기화 함수를 호출합니다.
-    // 다른 파일(game/stage5/js/player.js)에 플레이어 코드가 있을 것으로 기대합니다.
+    // 플레이어 초기화(다른 파일에서 정의된 NoelPlayer 사용)
     if(window.NoelPlayer && typeof window.NoelPlayer.init === 'function'){
       window.NoelPlayer.init();
     }
 
-    // 플레이어의 화면(캔버스) 안에서의 위치를 CSS 픽셀 단위로 계산해서 설정합니다.
-    // getBoundingClientRect()를 사용하면 캔버스가 실제로 화면에 차지하는 크기(CSS 픽셀)를 얻을 수 있습니다.
-    // 여기서는 화면 너비의 1/4 위치, 세로 중앙(50%)에 플레이어를 놓습니다.
+    // 캔버스 크기에 맞춰 플레이어 위치와 크기를 설정하는 함수
     function updatePlayerPosition(){
       const rect = game.getBoundingClientRect();
-      const x = rect.width * 0.25; // 왼쪽에서 1/4 지점
-      const y = rect.height * 0.5; // 세로 중앙
+      const x = rect.width * 0.25; // 화면 왼쪽에서 1/4 지점
+      const y = rect.height * 0.5; // 화면 세로 중앙
       if(window.NoelPlayer){
         window.NoelPlayer.setPosition(x, y);
-        // 캔버스 크기에 따라 적당한 스케일을 정합니다. 화면이 작아지면 캐릭터도 작아집니다.
+        // 화면 크기에 따라 스케일 조정(너무 작아지지 않게 최소값 사용)
         const base = Math.max(0.5, rect.width / 1500);
         window.NoelPlayer.setScale(base);
       }
     }
 
+    // 플레이어 HP를 안전하게 변경하는 헬퍼
     function applyPlayerHpDelta(delta){
       if (!window.NoelPlayer) return;
       if (typeof delta !== 'number' || delta === 0) return;
@@ -128,6 +137,7 @@
       window.NoelPlayer.hp = newHp;
     }
 
+    // 명령 버퍼를 화면에 보일 문자열로 만들기
     function formatCommandBuffer(){
       if (!commandManager) return DEFAULT_COMMAND_BUFFER_LABEL;
       const entries = commandManager.getBufferEntries();
@@ -141,11 +151,13 @@
       return placeholders.join(' ') + ' [' + entries.length + '/' + COMMAND_BUFFER_CAPACITY + ']';
     }
 
+    // 마지막으로 실행된 명령을 화면 표시용으로 저장
     function setLastCommandText(text){
       commandState.lastCommandText = text || '';
       commandState.lastCommandTime = performance.now();
     }
 
+    // 스테이지에서 사용할 명령들을 등록하는 함수
     function registerStageCommands(cm){
       if (!cm) return;
       const defs = [
@@ -156,11 +168,14 @@
       defs.forEach(def => cm.register(def.name, def.seq, handleCommandResolution));
     }
 
+    // 명령이 인식되었을 때 실제로 처리하는 함수
     function handleCommandResolution(payload){
       if (!payload || !payload.seq) return;
       const seqLength = payload.seq.length;
       const entries = Array.isArray(payload.entries) ? payload.entries.slice(-seqLength) : [];
-      if (entries.length < seqLength) return;
+      if (entries.length < seqLength) return; // 충분한 입력이 없으면 무시
+
+      // 입력 중 miss가 하나라도 있으면 명령 실패
       const hasMiss = entries.some(entry => !entry || !entry.judgement || entry.judgement.name === 'miss');
       if (hasMiss) {
         if (commandManager) commandManager.reset();
@@ -168,6 +183,7 @@
         return;
       }
 
+      // 각 입력의 스냅샷을 만들어 이벤트에 담아 보냅니다.
       const snapshots = entries.map(entry => ({
         key: entry.key,
         t: entry.t,
@@ -180,6 +196,7 @@
       };
       let label = '';
 
+      // 명령별 동작: 공격/방어/이동 등
       switch (payload.name) {
         case 'attack': {
           const player = window.NoelPlayer || {};
@@ -232,15 +249,20 @@
       if (commandManager) commandManager.reset();
     }
 
+    // 노트를 맞추려고 시도할 때 사용하는 함수
+    // - keyToken: 눌린 키 문자
+    // - options: 콜백이나 추가 규칙을 넣을 수 있음
     function attemptNoteHit(keyToken, options = {}){
       if (!window.judgeHit) return null;
       const notes = (noteManager && noteManager.notes) ? noteManager.notes : [];
       const hitX = HIT_X;
       let best = null;
+
+      // 가장 히트 라인에 가까운(오차가 작은) 노트를 찾습니다.
       if (notes.length){
         let bestAbsMs = Infinity;
         for (const n of notes){
-          if (n.hit) continue;
+          if (n.hit) continue; // 이미 친 노트는 건너뜀
           const speed = n.speed || 0;
           if (!speed) continue;
           const timeToHitMs = ((n.x - hitX) / speed) * 1000;
@@ -263,10 +285,12 @@
         judgments.push({ label: res.name, x: hitX + 30, y: rect.height/2, t: nowTs, ttl: 700, color: color });
       }
 
+      // 점수와 콤보 적용
       scoreManager.score += (res.score || 0);
       if (res.name === 'miss') scoreManager.combo = 0;
       else scoreManager.combo = (scoreManager.combo || 0) + 1;
 
+      // 회복(heal) 적용
       if (typeof res.heal !== 'undefined' && window.NoelPlayer){
         const regen = Number(window.NoelPlayer.hpRegen) || 0;
         const deltaHp = regen * Number(res.heal) || 0;
@@ -276,10 +300,12 @@
         }
       }
 
+      // 성공 판정이면 노트에 hit 표시
       if (best && best.note && res.name !== 'miss') {
         best.note.hit = true;
       }
 
+      // 결과 콜백 호출
       if (options && typeof options.onResult === 'function') {
         try {
           const timeStamp = typeof options.time === 'number' ? options.time : nowTs;
@@ -292,25 +318,25 @@
       return { judgement: res, note: best ? best.note : null, dt };
     }
 
-    // 키 입력 상태를 추적하기 위한 객체입니다.
-    // LEFT/RIGHT/UP/DOWN 각각이 눌려 있는지(true) 아닌지(false)를 저장합니다.
+    // 키 입력 상태(화살표 키)를 기억하는 객체
     const keyState = { LEFT: false, RIGHT: false, UP: false, DOWN: false };
     let input = null;
 
-    // InputHandler가 있으면 인스턴스화해서 사용합니다.
-    // InputHandler는 keydown을 감지해서 콜백을 호출합니다. keyup은 여기에서 별도 처리합니다.
+    // InputHandler가 있으면 입력을 받고 처리합니다.
     if (window.InputHandler) {
       input = new window.InputHandler();
-      // 키가 눌리면 onPress에 등록한 콜백이 호출됩니다.
+      // 키가 눌렸을 때 호출되는 콜백 등록
       input.onPress(evt => {
         const k = evt && evt.key;
         if (!k) return;
-        // 화살표 키는 계속 누르고 있으면 이동 상태로 만듭니다.
+        // 화살표는 누른 상태를 true로 바꿔 이동 처리에 사용
         if (k === 'LEFT' || k === 'RIGHT' || k === 'UP' || k === 'DOWN') {
           keyState[k] = true;
         } else if (k === 'SPACE') {
+          // 스페이스는 특수 처리: 판정 시도
           attemptNoteHit('SPACE', { allowPositiveHeal: true, time: evt.time });
         } else if (k === 'Z' || k === 'X') {
+          // Z/X는 노트 히트 시도와 커맨드 버퍼에 넣는 작업을 수행
           const keyToken = k;
           attemptNoteHit(keyToken, {
             allowPositiveHeal: false,
@@ -331,7 +357,7 @@
         }
       });
 
-      // InputHandler는 keyup을 제공하지 않으므로, 브라우저의 keyup 이벤트를 직접 받아서 상태를 정리합니다.
+      // keyup은 브라우저 이벤트로 처리하여 누름 상태를 해제합니다.
       window.addEventListener('keyup', (e)=>{
         const code = e.code || '';
         const normalized = (code === 'Space' || code === 'Spacebar') ? 'Space' : code;
@@ -343,30 +369,25 @@
       }, { passive: true });
     }
 
-    // 창 크기(리사이즈)나 로드 시 플레이어 위치를 동기화합니다.
+    // 창 크기 변경이나 로드 시 플레이어 위치를 재계산
     window.addEventListener('resize', updatePlayerPosition);
     window.addEventListener('load', updatePlayerPosition);
-
-    // 초기 한 번 실행해서 기본 위치를 설정합니다.
     updatePlayerPosition();
 
-    // 간단한 애니메이션 루프(프레임 루프)
-    // frame 함수가 매 프레임 호출되어 게임 상태 업데이트와 그리기를 수행합니다.
+    // 프레임 루프: 게임 상태 업데이트와 화면 그리기
     let last = performance.now();
     function frame(now){
-      // 프레임 간 시간이 너무 커지면(백그라운드 후 복귀 등) 안정성을 위해 최대 100ms로 클램프합니다.
-      const dt = Math.min(100, now - last);
+      const dt = Math.min(100, now - last); // 너무 큰 dt는 제한
       last = now;
 
-      // 게임 캔버스 지우기 (배경 색은 CSS에서 검정으로 설정해 둘 수 있음)
+      // 게임 캔버스 초기화
       if(gctx){
         gctx.clearRect(0, 0, game.width, game.height);
       }
 
-      // NoteManager가 있으면 노트 갱신 및 그리기를 수행합니다.
+      // 노트 업데이트 및 그리기
       if (noteManager && nctx) {
         noteManager.update(dt);
-        // notesRenderer가 있으면 그것으로 그리기(클리어 포함), 없으면 NoteManager가 자체적으로 그림
         if (notesRenderer) {
           notesRenderer.clear();
           notesRenderer.drawSpatialNotes(noteManager.notes);
@@ -375,14 +396,12 @@
         }
       }
 
-      // 히트 라인과 판정(judgment) 오버레이를 notesCanvas에 그림
+      // 판정 이펙트(원, 텍스트)를 표시하고 오래된 것은 제거
       if (nctx) {
         const rect = notesCanvas.getBoundingClientRect();
         const hitX = HIT_X;
         if (notesRenderer) notesRenderer.drawVerticalHitLine(hitX);
 
-
-        // judgments 배열을 순회하면서 화면에 판정 이펙트를 그리고, 오래된 항목은 제거합니다.
         const nowTs = performance.now();
         for (let i = judgments.length - 1; i >= 0; i--) {
           const j = judgments[i];
@@ -390,7 +409,8 @@
           if (age > j.ttl) { judgments.splice(i,1); continue; }
           const ratio = age / j.ttl;
           const alpha = 1 - ratio;
-          // 히트 라인에서 퍼져나가는 원(effect)
+
+          // 히트 라인에서 퍼지는 원 이펙트
           const cx = hitX;
           const cy = rect.height / 2;
           const startR = 6;
@@ -405,7 +425,7 @@
           nctx.fill();
           nctx.restore();
 
-          // 판정 텍스트 (색상이 있고, 천천히 위로 이동하면서 페이드아웃)
+          // 판정 텍스트
           nctx.save();
           nctx.globalAlpha = Math.min(1, 1.2 * alpha);
           nctx.fillStyle = j.color || '#fff';
@@ -417,11 +437,10 @@
         }
       }
 
-      // 플레이어 이동: 누르고 있는 화살표 키 상태에 따라 위치를 업데이트합니다.
+      // 플레이어 이동과 그리기
       if (window.NoelPlayer) {
-        // 화면 크기를 기준으로 속도 가중치를 계산합니다. dt는 밀리초 단위입니다.
         const rect = game.getBoundingClientRect();
-        const speed = Math.max(120, rect.width * 0.5); // 초당 픽셀(px/s) 히스테릭스
+        const speed = Math.max(120, rect.width * 0.5);
         const s = (dt / 1000) * speed;
         let moved = false;
         let nx = window.NoelPlayer.x || 0;
@@ -431,26 +450,27 @@
         if (keyState.UP) { ny -= s; moved = true; }
         if (keyState.DOWN) { ny += s; moved = true; }
 
-        // 플레이어가 캔버스 밖으로 나가지 않도록 경계값으로 막습니다.
+        // 경계 안으로 위치 제한
         const margin = 8;
         nx = Math.max(margin, Math.min(rect.width - margin, nx));
         ny = Math.max(margin, Math.min(rect.height - margin, ny));
         window.NoelPlayer.setPosition(nx, ny);
 
-        // 이동 상태에 따라 애니메이션 방향을 설정합니다.
+        // 방향에 따라 애니메이션 설정
         if (!moved) {
           window.NoelPlayer.setDirection('idle');
         } else {
-          // 왼/오를 우선으로 처리하고, 위/아래는 보조로 처리합니다.
           if (keyState.LEFT) window.NoelPlayer.setDirection('left');
           else if (keyState.RIGHT) window.NoelPlayer.setDirection('right');
           else if (keyState.UP) window.NoelPlayer.setDirection('back');
           else if (keyState.DOWN) window.NoelPlayer.setDirection('front');
         }
 
-        // 플레이어의 내부 상태를 갱신하고 그립니다.
+        // 업데이트 및 그리기
         window.NoelPlayer.update(dt);
         window.NoelPlayer.draw(gctx);
+
+        // HUD(점수/콤보 등) 그리기
         const bufferLabel = formatCommandBuffer();
         let commandLabel = '';
         if (commandState.lastCommandText) {
@@ -460,15 +480,13 @@
             commandState.lastCommandText = '';
           }
         }
-        // HUD는 gameRenderer로 그립니다 (gameCanvas 위에 점수/콤보 표시)
         if (gameRenderer) {
           gameRenderer.drawHUD(scoreManager, { bufferText: bufferLabel, commandText: commandLabel });
         }
-        // 화면 하단에 플레이어 체력 바(녹색)를 표시합니다.
+
+        // 체력 바 그리기
         if (gctx && window.NoelPlayer) {
           try {
-            // canvas는 setTransform(dpr,0,0,dpr,0,0) 처리가 되어 있으므로
-            // 레이아웃 및 위치 계산은 CSS 픽셀 단위(getBoundingClientRect)를 사용해야 합니다.
             const rect = game.getBoundingClientRect();
             const canvasW = rect.width || 800;
             const canvasH = rect.height || 600;
@@ -476,26 +494,20 @@
             const barHeight = Math.max(8, Math.floor(canvasH * 0.04));
             const barW = Math.max(100, canvasW - padding * 2);
             let hp = Number(window.NoelPlayer.hp) || 0;
-            // hpMax 우선순위: NoelPlayer.hpMax -> 1000(fallback)
             const hpMax = Number(window.NoelPlayer.hpMax) || 1000;
-            // hp를 상한/하한으로 클램프
             const clampedHp = Math.max(0, Math.min(hpMax, hp));
             const ratio = hpMax > 0 ? (clampedHp / hpMax) : 0;
             const x = padding;
             const y = canvasH - barHeight - padding;
 
             gctx.save();
-            // 배경 바
             gctx.fillStyle = '#222';
             gctx.fillRect(x, y, barW, barHeight);
-            // 체력 채움(녹색)
             gctx.fillStyle = '#4CAF50';
             gctx.fillRect(x, y, Math.floor(barW * ratio), barHeight);
-            // 외곽선
             gctx.strokeStyle = '#000';
             gctx.lineWidth = 1;
             gctx.strokeRect(x + 0.5, y + 0.5, barW - 1, barHeight - 1);
-            // 텍스트 (숫자 표시)
             gctx.fillStyle = '#fff';
             gctx.font = Math.max(12, Math.floor(barHeight * 0.8)) + 'px sans-serif';
             gctx.textAlign = 'center';
@@ -503,13 +515,11 @@
             gctx.fillText(Math.floor(clampedHp) + '/' + hpMax, x + barW / 2, y + barHeight / 2);
             gctx.restore();
           } catch (e) {
-            // 안전을 위해 예외는 무시하고 콘솔에 로깅
             console.warn('HP bar draw failed', e);
           }
         }
       }
 
-      // 다음 프레임 예약
       requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);

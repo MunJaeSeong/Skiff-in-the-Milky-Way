@@ -1,11 +1,11 @@
  (function () {
   'use strict';
 
-  // Noel용 아틀라스 기반 플레이어 애니메이터 (스테이지 5)
+  // NoelPlayer: 노엘 캐릭터를 그리기 위한 객체입니다.
+  // - 아틀라스 이미지(프레임이 여러 개인 이미지)를 불러와서 프레임 단위로 그립니다.
+  // - 간단한 상태(위치, 스케일, 방향, 체력 등)를 가지고 있습니다.
   const NoelPlayer = {
-    // `move/` 폴더의 아틀라스 PNG를 우선 사용하고 가로/세로 그리드로 프레임을 자릅니다
-    // 이미지 기본 경로는 페이지 위치에 따라 달라지므로 전역 `window.ASSET_BASE`가 설정되어 있으면 그것을 사용합니다.
-    // 기존 기본값은 이전과 동일하게 '../../../assets'로 유지합니다.
+    // 이미지 경로: window.ASSET_BASE가 있으면 그걸 기준으로, 아니면 상대경로 사용
     imgPaths: (function(){
       const base = (typeof window !== 'undefined' && window.ASSET_BASE) ? window.ASSET_BASE : '../../../assets';
       return {
@@ -17,9 +17,7 @@
       };
     })(),
 
-    // 아틀라스별 예상 프레임 수와 그리드 레이아웃
-    // 앞/뒤(front/back): 4열 x 8행 = 32프레임
-    // 좌/우(left/right): 4열 x 10행 = 40프레임
+    // 각 상태 별 예상 프레임 수와 그리드(열/행)
     frameCount: { idle: 1, back: 32, front: 32, left: 40, right: 40 },
     frameGrid: {
       idle: { cols: 1, rows: 1 },
@@ -28,48 +26,46 @@
       left: { cols: 4, rows: 10 },
       right: { cols: 4, rows: 10 }
     },
-    frameDuration: 60, // 프레임당 지속시간(밀리초)
+    frameDuration: 60, // 각 프레임이 보이는 시간(밀리초)
 
-    images: {},
-    meta: {},
+    images: {}, // 로드한 이미지 객체들 저장
+    meta: {},   // 각 이미지의 프레임 너비/높이 등 메타 데이터
     loaded: false,
 
-    // 런타임 상태
+    // 런타임 상태들
     x: 0,
     y: 0,
     scale: 1,
-    // 외부에서 설정된 scale 값에 곱해지는 내부 배수입니다.
-    // 게임 전반에서 같은 스케일을 유지하려면 이 값을 조정하세요. (0.6 -> 60%)
-    scaleMultiplier: 0.15,
+    scaleMultiplier: 0.15, // 외부에서 주는 스케일에 곱해지는 내부 보정값
     direction: 'idle', // 'idle' | 'back' | 'front' | 'left' | 'right'
     frameIndex: 0,
     frameTimer: 0,
-    // 전투/상태 관련 속성
-    attack: 10, // 공격력
-    defending: false, // 방어 여부 (boolean)
-    hpMax: 1000, // 최대 체력
-    hp: 1000, // 현재 체력
-    speed: 5, // 이동 속도
-    hpRegen: 10, // 체력 회복력 (단위: 초당 값 등 필요시 외부에서 해석)
+    attack: 10,
+    defending: false,
+    hpMax: 1000,
+    hp: 1000,
+    speed: 5,
+    hpRegen: 10,
 
-    // HP 조작 헬퍼: amount는 양수(회복) 또는 음수(대미지)
+    // 체력 늘리기(회복)
     heal(amount) {
       if (typeof amount !== 'number' || amount === 0) return;
       this.hp = Math.min(this.hpMax, this.hp + amount);
     },
+    // 데미지 받기
     takeDamage(amount) {
       if (typeof amount !== 'number' || amount === 0) return;
-      // amount는 양수 값으로 기대
       const dmg = Math.abs(amount);
       this.hp = Math.max(0, this.hp - dmg);
     },
-    // 범용: 음수면 데미지, 양수면 회복
+    // 양수면 회복, 음수면 데미지
     applyHpDelta(delta) {
       if (typeof delta !== 'number' || delta === 0) return;
       if (delta > 0) this.heal(delta);
       else this.takeDamage(Math.abs(delta));
     },
 
+    // init(): 이미지들을 불러와 메타 정보를 계산합니다.
     init() {
       const keys = ['idle', 'back', 'front', 'left', 'right'];
       let remaining = keys.length;
@@ -78,16 +74,14 @@
         img.src = this.imgPaths[k];
         img.onload = () => {
           this.images[k] = img;
-          // 그리드 정보가 있으면 그 정보를 사용하여 프레임 너비/높이를 계산합니다
+          // 프레임 그리드 정보 얻기
           const count = this.frameCount[k === 'idle' ? 'idle' : k] || 1;
           const grid = (this.frameGrid && this.frameGrid[k]) ? this.frameGrid[k] : null;
           let cols = 1, rows = 1;
           if (grid) {
-            // 제공된 그리드 정보 사용
             cols = Math.max(1, grid.cols | 0);
             rows = Math.max(1, grid.rows | 0);
           } else if (count > 1) {
-            // 그리드 정보가 없으면 기본으로 4열을 사용하고 행 수를 계산합니다
             cols = 4;
             rows = Math.max(1, Math.ceil(count / cols));
           }
@@ -100,11 +94,11 @@
           };
           remaining -= 1;
           if (remaining === 0) {
-            this.loaded = true;
+            this.loaded = true; // 모든 이미지 로드 완료
           }
         };
         img.onerror = () => {
-          // 이미지가 하나라도 로드되지 않아도 계속 진행합니다. 모든 로드 시도가 끝나면 loaded를 true로 설정합니다
+          // 이미지 로드 실패 시 경고만 남기고 계속 진행
           console.warn('NoelPlayer: failed to load', this.imgPaths[k]);
           remaining -= 1;
           if (remaining === 0) this.loaded = true;
@@ -118,10 +112,8 @@
     },
 
     setScale(s) {
-      // 외부에서 크기를 지정할 때 내부 multiplier를 적용하여 항상 작게 보이도록 합니다.
       if (typeof s !== 'number') return;
       const m = (typeof this.scaleMultiplier === 'number') ? this.scaleMultiplier : 1;
-      // 최소 크기 제한을 둡니다.
       this.scale = Math.max(0.02, s * m);
     },
 
@@ -134,6 +126,7 @@
       }
     },
 
+    // update(dt): 애니메이션 프레임 타이머를 갱신합니다.
     update(dt) {
       if (!this.loaded) return;
       const key = (this.direction === 'idle') ? 'idle' : this.direction;
@@ -147,10 +140,11 @@
       }
     },
 
+    // draw(ctx): 현재 프레임을 캔버스에 그립니다.
     draw(ctx) {
       if (!ctx) return;
       if (!this.loaded) {
-        // 이미지가 로드되기 전 간단한 플레이스홀더를 그립니다
+        // 이미지가 준비되지 않았으면 흰 네모로 자리 표시
         ctx.save();
         ctx.fillStyle = '#fff';
         ctx.fillRect(this.x - 16, this.y - 16, 32, 32);
@@ -163,7 +157,7 @@
       const m = this.meta[key];
       if (!img || !m) return;
 
-      // 원본(소스) 사각형과 출력(목적지) 크기를 결정합니다
+      // 원본에서 잘라낼 위치(srcX, srcY)와 화면에 그릴 크기(destW, destH) 계산
       let srcX = 0;
       let srcY = 0;
       let srcW = m.frameW;
@@ -172,8 +166,7 @@
       let destH = Math.floor(srcH * this.scale);
 
       if (key === 'idle') {
-        // idle은 정적 이미지입니다. 전체 이미지를 그리고 아틀라스 프레임 크기에 맞게 확대합니다
-        // (참조로 right/front/back/left 중 하나의 프레임 크기를 사용)
+        // idle은 정적 이미지 전체를 사용
         srcW = img.width;
         srcH = img.height;
         srcX = 0;
@@ -187,7 +180,7 @@
           destH = Math.floor(srcH * this.scale);
         }
       } else {
-        // 아틀라스를 열×행 그리드로 보고 소스 x/y를 계산합니다
+        // 아틀라스에서 현재 프레임의 열/행을 계산해서 src 위치를 정함
         const col = this.frameIndex % m.cols;
         const row = Math.floor(this.frameIndex / m.cols);
         srcX = col * m.frameW;
@@ -198,7 +191,7 @@
         destH = Math.floor(srcH * this.scale);
       }
 
-      // (x, y)를 중앙으로 하여 출력 위치를 계산하고 이미지를 그립니다
+      // (x, y)를 중심으로 그리기
       const dx = Math.floor(this.x - destW / 2);
       const dy = Math.floor(this.y - destH / 2);
       ctx.drawImage(img, srcX, srcY, srcW, srcH, dx, dy, destW, destH);

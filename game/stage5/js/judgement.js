@@ -1,46 +1,37 @@
 /*
   judgement.js
 
-  이 파일은 플레이어가 노트를 입력했을 때 "얼마나 정확히" 입력했는지를 판단(judge)하는 역할을 합니다.
-  아래 주석은 중학생도 이해할 수 있도록 간단한 용어와 예시를 섞어 설명합니다.
+  노트를 언제(얼마나 정확히) 눌렀는지 판정하는 코드입니다.
+  쉽게 말하면: "정확히 눌렀으면 PERFECT, 조금 틀리면 GOOD, 많이 틀리면 MISS"를 돌려줍니다.
 
-  판정 기준(밀리초 단위):
-  - PERFECT: 아주 정확하게 눌렀을 때 (예: 오차가 80ms 이내)
-  - GOOD: 조금 덜 정확하지만 괜찮은 입력 (예: 오차가 150ms 이내)
-  - MISS: 꽤 벗어났을 때 (예: 오차가 250ms 이내)
-  이 숫자들은 '허용 오차'를 뜻합니다. 더 작으면 더 깐깐한 판정입니다.
+  함수 설명:
+  - window.judgeHit(deltaMs)를 호출하면 판정 결과 객체를 반환합니다.
+  - deltaMs는 '플레이어 입력 시간 - 노트 도착 시간'입니다. 음수이면 먼저 누른 것, 양수이면 늦게 누른 것.
+  - 내부에서는 절대값(|deltaMs|)으로 오차 크기를 보고 판정을 합니다.
 */
 
 (function () {
   'use strict';
 
-  // 판정 허용 범위를 밀리초(ms)로 정한 상수들입니다.
-  // 예: PERFECT = 80 이면, 실제 입력 시점과 목표 시점이 80ms 이내이면 "perfect" 판정입니다.
-  const PERFECT = 80;
-  const GOOD = 150;
-  const MISS = 250;
+  // 판정 기준(밀리초)
+  const PERFECT = 80; // 80ms 이내면 퍼펙트
+  const GOOD = 150;   // 150ms 이내면 굿
+  const MISS = 250;   // 250ms 이내면 미스
 
-  // judge 함수
-  // - deltaMs: 실제 입력 시각과 노트의 목표 시각의 차이(밀리초). 보통은 (playerTime - noteTime)
-  //   예: deltaMs 가 -30이면 "플레이어가 30ms 먼저 입력"했다는 뜻입니다.
-  // - 함수는 절대값(|deltaMs|)을 보고 판정을 합니다. 즉, '빨리' 눌렀는지 '늦게' 눌렀는지는 상관하지 않습니다.
+  // judge(deltaMs): 판정을 계산해서 객체로 반환합니다.
+  // 반환 예: { name: 'perfect', attack: 2, heal: 3, score: 500 }
   function judge(deltaMs) {
-    // d는 오차의 크기(항상 양수)
-    const d = Math.abs(deltaMs);
+    const d = Math.abs(deltaMs); // 오차의 크기
 
-    // 오차가 가장 작으면 perfect 판정.
     if (d <= PERFECT) return { name: 'perfect', attack : 2 , heal  : 3, score: 500 };
-    // 더 넓은 범위면 good 판정.
     if (d <= GOOD) return { name: 'good', attack : 1.3 , heal  : 1, score: 150 };
-    // MISS 범위 안이면 miss 판정(점수 0.3).
     if (d <= MISS) return { name: 'miss', attack : 0.3 , heal  : -5, score: 0 };
-    // 위의 범위를 모두 벗어나면 사실상 '완전 빗나감'으로 처리합니다. 여기서는 miss로 처리.
+
+    // 그보다 더 어긋나면 미스로 처리
     return { name: 'miss', attack : 0.3 , heal  : -5, score: 0 };
   }
 
-  // judge 함수를 전역(window)에 연결해서 다른 코드에서 사용할 수 있게 합니다.
-  // 예: let result = window.judgeHit(playerTime - noteTime);
+  // 전역에 공개해서 다른 코드에서 사용할 수 있게 합니다.
   window.judgeHit = judge;
-  // 또한 판정에 쓰인 상수들을 외부에서 확인할 수 있게 공개합니다.
   window.JUDGEMENT_THRESHOLDS = { PERFECT, GOOD, MISS };
 })();
