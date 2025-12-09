@@ -49,7 +49,7 @@
       titleButton: '타이틀',
       practiceLabel: '연습모드',
       stages: {
-        stage1: '은하 협곡', stage2: '바다의 섬', stage3: '초신성 폭발', stage4: '성운 횡단로'
+        stage1: '공잡기', stage2: '숫자야구', stage3: '초신성 폭발', stage4: '성운 횡단로'
       },
       custom: { title: '커스터마이징', tabChar: '캐릭터', tabShip: '조각배', tabProjectile: '발사체', customizeBtn: '커스텀마이징', myPage: '내 정보' },
       characters: { rea: '레아', noa: '노아', noel: '노엘' },

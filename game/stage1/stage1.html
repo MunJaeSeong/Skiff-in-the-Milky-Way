@@ -1,35 +1,40 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width,initial-scale=1" />
-	<title>Stage 1</title>
-	<link rel="stylesheet" href="../../css/game.css">
-	<style>html,body{height:100%;margin:0;background:#000;color:#fff;display:flex;align-items:center;justify-content:center}#gameCanvas{display:block;width:100vw;height:100vh;position:fixed;inset:0}</style>
+  <meta charset="UTF-8">
+  <title>Falling Dot Hunter</title>
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-	<canvas id="gameCanvas" aria-label="Game Canvas"></canvas>
 
-	<!-- 공통 유틸/오버레이 -->
-	<script src="../util.js"></script>
-	<script src="../clear.js"></script>
-	<script src="../fail.js"></script>
+<div id="gameArea">
+  <div id="canvasWrap">
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <div id="lifeBadge" aria-hidden="false">
+      <!-- scoreDisplay moved into badge -->
+      <div id="scoreDisplay">점수: <span id="score">0</span></div>
+    </div>
+    <!-- keep a lower hearts container attached outside canvas -->
+    <div id="heartLower" aria-hidden="false">
+      <div id="lives" aria-label="목숨"></div>
+    </div>
+  </div>
+  <div id="sideInfo">
+    <!-- sideInfo may hold other UI in future -->
+  </div>
+</div>
+<div id="controls">
+  <div id="startArea">
+    <button id="startBtn" class="big">시작</button>
+  </div>
+</div>
+<!-- 점수 저장 입력 및 상위 10개 리스트 -->
+<div id="scoreBoard">
+  <h4>Top 10 점수</h4>
+  <ol id="scoreList"></ol>
+</div>
 
-	<!-- 캔버스 크기(그리기 버퍼) 동기화: placeholder 페이지에서도 크기 맞춤 -->
-	<script>
-	(function(){
-	  const c = document.getElementById('gameCanvas');
-	  function fitCanvas(){ if(!c) return; const w=Math.max(320,Math.floor(window.innerWidth)); const h=Math.max(240,Math.floor(window.innerHeight)); if(c.width!==w||c.height!==h){c.width=w;c.height=h;} }
-	  window.addEventListener('resize', fitCanvas);
-	  if(document.readyState==='complete' || document.readyState==='interactive') setTimeout(fitCanvas,0); else document.addEventListener('DOMContentLoaded', fitCanvas);
-	})();
-	</script>
+<script src="js/game.js"></script>
 
-	<!-- 이 스테이지는 아직 스크립트가 없습니다. 간단 안내와 뒤로가기 버튼을 표시합니다. -->
-	<div style="position:relative;z-index:10010;text-align:center;pointer-events:auto;">
-		<h1>Stage 1 - 준비중</h1>
-		<p>이 스테이지의 실행 스크립트가 없습니다. 나중에 다시 시도하세요.</p>
-		<p><a href="../../select.html">스테이지 선택으로 돌아가기</a></p>
-	</div>
 </body>
 </html>

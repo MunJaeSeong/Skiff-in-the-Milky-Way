@@ -1,0 +1,329 @@
+canvas {
+  border: 2px solid #333;
+  display: block;
+  margin: 20px auto;
+  background: #f2f2f2;
+  max-width: 100%;
+}
+
+/* Page background and mini-game frame */
+body {
+  background: linear-gradient(180deg, #0f1724 0%, #10243a 50%, #0b1b2a 100%);
+  color: #eef2ff;
+  font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#gameArea { /* keep the canvas visually in a card */
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  align-items: flex-start;
+  margin-top: 36px;
+}
+
+/* Card around canvas to make it feel like a game window */
+#gameCanvas {
+  border-radius: 12px;
+  box-shadow: 0 14px 40px rgba(2,6,23,0.6), inset 0 2px 6px rgba(255,255,255,0.02);
+  background: linear-gradient(180deg, #ffffff 0%, #f2f6fb 100%);
+}
+
+/* canvas wrapper to allow absolute positioned badges */
+#canvasWrap {
+  position: relative;
+  display: inline-block;
+}
+
+/* Life badge attached to canvas left edge (outside the canvas, not overlapping) */
+#lifeBadge {
+  position: absolute;
+  left: 0; /* anchor at canvas left edge */
+  top: 8px; /* near the top of canvas, adjust as needed */
+  transform: translateX(-110%); /* push fully outside so it doesn't cover canvas */
+  background: rgba(255,255,255,0.95);
+  padding: 6px 10px;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+}
+
+#lifeBadge #lives { display:inline-flex; gap:6px; align-items:center; }
+#lifeBadge .heart-img { width:20px; height:20px; }
+
+/* Mobile fallback: place badge inside canvas wrap (no negative translate) */
+@media (max-width: 720px) {
+  #lifeBadge { left: 6px; transform: none; top: 6px; }
+}
+
+/* Wrap canvas and adjacent info */
+
+#gameArea {
+  display: flex;
+  justify-content: center; /* center canvas horizontally within page */
+  gap: 0; /* no gap so sideInfo can sit flush against canvas */
+  align-items: flex-start;
+  margin-top: 36px;
+}
+
+/* Show side info (lives) on the left of the canvas on wide screens */
+@media (min-width: 900px) {
+  #gameArea { flex-direction: row-reverse; /* canvas then sideInfo visually -> sideInfo left */ }
+  #sideInfo { margin-right: 0; margin-left: 0; }
+  /* keep the life badge slightly offset so it doesn't overlap canvas rounded corner */
+  #sideInfo #lifeArea { transform: translateX(-6px); }
+}
+
+#sideInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+#scoreDisplay {
+  text-align: left;
+  font-size: 18px;
+  font-weight: 700;
+  background: rgba(255,255,255,0.95);
+  color: #111;
+  padding: 6px 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  z-index: 1200;
+}
+
+/* Left-side controls (시작 버튼, 목숨) */
+#controls {
+  position: fixed;
+  left: 20px;
+  top: 64px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: rgba(255,255,255,0.9);
+  padding: 10px 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  z-index: 1000;
+}
+
+#startArea {
+  display: flex;
+  align-items: center;
+}
+
+#startBtn {
+  padding: 18px 26px;
+  background: #2d89ef;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 20px;
+  transform-origin: center;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+  box-shadow: 0 6px 18px rgba(45,137,239,0.18);
+}
+
+/* Make the start button visually much larger (approx 4-5x) */
+#startBtn.big {
+  padding: 36px 52px;
+  font-size: 36px;
+  border-radius: 12px;
+}
+
+#startBtn:hover {
+  background: #256fcb;
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 10px 26px rgba(37,111,203,0.18);
+}
+
+/* Gentle pulsing for start button to draw attention */
+@keyframes pulse {
+  0% { box-shadow: 0 8px 26px rgba(45,137,239,0.12); transform: scale(1); }
+  50% { box-shadow: 0 18px 46px rgba(45,137,239,0.18); transform: scale(1.02); }
+  100% { box-shadow: 0 8px 26px rgba(45,137,239,0.12); transform: scale(1); }
+}
+
+#startBtn.big { animation: pulse 2.6s ease-in-out infinite; }
+
+#lifeArea {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* If hearts are inserted as images inside #lives, ensure they align nicely */
+#lives { display:inline-flex; gap:8px; align-items:center; }
+#lives .heart-img { width:28px; height:28px; }
+
+/* Life badges */
+.life-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 46px;
+  height: 46px;
+  background: linear-gradient(180deg,#ffe3e3,#ffd1d1);
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+  color: #7b0b0b;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.life-badge img { width: 22px; height: 22px; }
+
+/* Position the sideInfo (lives) beside the canvas */
+#sideInfo #lifeArea { background: rgba(255,255,255,0.9); padding: 8px 10px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08);} 
+
+#scoreBoard {
+  position: fixed;
+  right: 20px;
+  top: 20px;
+  width: 320px;
+  max-width: 38vw;
+  background: rgba(255,255,255,0.98);
+  color: #111;
+  padding: 16px;
+  border-radius: 10px;
+  z-index: 1000;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+}
+
+/* Trophy header */
+#scoreBoard h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trophy {
+  width: 26px;
+  height: 26px;
+  background: linear-gradient(180deg,#ffd36b,#f5b400);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(245,180,0,0.18);
+}
+
+.trophy::after { content: '🏆'; font-size: 14px; }
+
+#scoreBoard h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #333;
+  letter-spacing: 0.2px;
+}
+
+#saveArea {
+  display: none;
+  margin-bottom: 8px;
+}
+
+#saveArea .hint {
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+#playerName {
+  width: 100%;
+  padding: 6px;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+}
+
+.saveButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.saveButtons button {
+  flex: 1;
+}
+
+#scoreList {
+  padding-left: 18px;
+  margin: 0;
+  font-size: 15px;
+  color: #222;
+  max-height: 520px;
+  overflow: auto;
+}
+
+#scoreList li { display:flex; justify-content:space-between; align-items:center; }
+
+#scoreList li .name { color: #0b2949; }
+#scoreList li .points { color: #0a4a8a; font-weight:700; }
+
+/* First place accent */
+#scoreList li:first-child { background: linear-gradient(90deg, rgba(255,240,200,0.9), rgba(255,255,255,0)); }
+
+/* Make scoreboard feel lighter on dark bg */
+#scoreBoard { color: #07223f; }
+
+/* Responsive: ensure game area stacks on small screens */
+@media (max-width: 760px) {
+  #gameArea { flex-direction: column; align-items: center; }
+  #scoreBoard { position: static; width: calc(100% - 40px); margin: 12px auto; }
+
+/* lower hearts container (outside canvas, below top badge) */
+#heartLower {
+  position: absolute;
+  left: 0;
+  top: 48px; /* lower than previous so hearts sit below score */
+  transform: translateX(-110%);
+  z-index: 1200;
+  background: transparent;
+}
+
+#heartLower #lives { display:inline-flex; gap:8px; align-items:center; }
+#heartLower .heart-img { width:22px; height:22px; }
+}
+
+/* Emphasize 1st place */
+#scoreList li:first-child {
+  font-weight: 800;
+  color: #0a4a8a;
+  background: linear-gradient(90deg, rgba(45,137,239,0.06), rgba(45,137,239,0));
+  padding: 6px 8px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(45,137,239,0.06) inset;
+}
+
+/* Slightly larger spacing for list entries */
+#scoreList li { margin: 6px 0; }
+
+/* Responsive: on small screens, avoid fixed sidebars overlapping canvas */
+@media (max-width: 700px) {
+  #scoreDisplay, #controls, #scoreBoard {
+    position: static;
+    margin: 8px auto;
+    left: auto;
+    right: auto;
+    width: calc(100% - 40px);
+  }
+
+  #controls {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  #scoreBoard {
+    width: calc(100% - 40px);
+    margin-top: 6px;
+  }
+}
+
+/* 하트(목숨) 이미지 스타일 */
+#lives { display:inline-flex; gap:8px; align-items:center; }
+.heart-img { width:20px; height:20px; object-fit:contain; display:inline-block; }
+.heart-img.empty { filter: grayscale(100%) opacity(0.32); }
+
