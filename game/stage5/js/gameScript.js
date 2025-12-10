@@ -41,7 +41,7 @@
     // 노트 관리자, 판정 이펙트(화면에 잠깐 보이는 텍스트), 점수 정보를 준비합니다.
     let noteManager = null;
     const judgments = []; // 판정 효과들을 잠시 저장하는 배열
-    const scoreManager = { score: 0, combo: 0 };
+    const scoreManager = { score: 0};
 
     // 커맨드 관련 설정
     const COMMAND_BUFFER_CAPACITY = 4;
@@ -50,6 +50,27 @@
     const commandState = { lastCommandText: '', lastCommandTime: 0 };
     let commandManager = null;
     let advanceDistance = 0;
+
+    // 맵 시스템 설정
+    const MAP_TOTAL_LENGTH = 1000;
+    let mapManager = null;
+
+    // MapManager 초기화
+    if (window.MapManager && game) {
+      const basePath = (typeof window !== 'undefined' && window.ASSET_BASE) ? window.ASSET_BASE : '../../../assets';
+      mapManager = new window.MapManager(game, {
+        totalLength: MAP_TOTAL_LENGTH,
+        pixelsPerAdvance: 100,
+        basePath: basePath
+      });
+    }
+
+    // 몬스터 시스템 설정
+    let monsterManager = null;
+    if (window.MonsterManager) {
+      monsterManager = new window.MonsterManager();
+      window.stage5MonsterManager = monsterManager; // 디버그용 전역 보관
+    }
 
     // NoteManager가 있으면 인스턴스화합니다. (notesCanvas가 필요)
     if (window.NoteManager && notesCanvas) {
@@ -114,7 +135,7 @@
     function updatePlayerPosition(){
       const rect = game.getBoundingClientRect();
       const x = rect.width * 0.25; // 화면 왼쪽에서 1/4 지점
-      const y = rect.height * 0.5; // 화면 세로 중앙
+      const y = rect.height * 0.75; // 화면 아래쪽 1/4 지점 (위에서 3/4)
       if(window.NoelPlayer){
         window.NoelPlayer.setPosition(x, y);
         // 화면 크기에 따라 스케일 조정(너무 작아지지 않게 최소값 사용)
@@ -209,7 +230,25 @@
           const displayDamage = Math.round(totalDamage * 10) / 10;
           detail.damage = totalDamage;
           detail.damageDisplay = displayDamage;
-          label = 'ATTACK ' + displayDamage;
+          
+          // 몬스터에게 데미지 주기
+          if (monsterManager) {
+            const result = monsterManager.damageActiveMonster(totalDamage);
+            if (result) {
+              detail.monsterDamaged = true;
+              detail.monsterHp = result.remainingHp;
+              detail.monsterDefeated = result.isDefeated;
+              if (result.isDefeated) {
+                label = 'ATTACK ' + displayDamage + ' - MONSTER DEFEATED!';
+              } else {
+                label = 'ATTACK ' + displayDamage + ' (Monster HP: ' + Math.floor(result.remainingHp) + ')';
+              }
+            } else {
+              label = 'ATTACK ' + displayDamage;
+            }
+          } else {
+            label = 'ATTACK ' + displayDamage;
+          }
           break;
         }
         case 'defend': {
@@ -219,20 +258,36 @@
           break;
         }
         case 'advance': {
+          // 몬스터가 있으면 전진 불가
+          if (monsterManager && monsterManager.getActiveMonster() && monsterManager.getActiveMonster().isAlive) {
+            label = 'ADVANCE BLOCKED - DEFEAT MONSTER FIRST!';
+            detail.blocked = true;
+            detail.reason = 'monster';
+            break;
+          }
+          
           const player = window.NoelPlayer;
           let distance = 0;
           if (player) {
             distance = Number(player.speed) || 0;
-            const rect = game.getBoundingClientRect();
-            const margin = 8;
-            const currentX = player.x || 0;
-            const targetX = Math.max(margin, Math.min(rect.width - margin, currentX + distance));
-            player.setPosition(targetX, player.y || 0);
-            advanceDistance += distance;
+            // 맵 최대 길이 제한
+            if (advanceDistance + distance > MAP_TOTAL_LENGTH) {
+              distance = MAP_TOTAL_LENGTH - advanceDistance;
+            }
+            if (distance > 0) {
+              advanceDistance += distance;
+              if (mapManager) {
+                mapManager.setAdvanceDistance(advanceDistance);
+              }
+              // 몬스터 생성 체크
+              if (monsterManager) {
+                monsterManager.checkSpawn(advanceDistance, game);
+              }
+            }
           }
           detail.distance = distance;
           detail.totalDistance = advanceDistance;
-          label = 'ADVANCE +' + Math.round(distance);
+          label = 'ADVANCE +' + Math.round(distance) + ' (' + Math.round(advanceDistance) + '/' + MAP_TOTAL_LENGTH + ')';
           break;
         }
         default: {
@@ -370,8 +425,14 @@
     }
 
     // 창 크기 변경이나 로드 시 플레이어 위치를 재계산
-    window.addEventListener('resize', updatePlayerPosition);
-    window.addEventListener('load', updatePlayerPosition);
+    window.addEventListener('resize', () => {
+      updatePlayerPosition();
+      if (mapManager) mapManager.onResize();
+    });
+    window.addEventListener('load', () => {
+      updatePlayerPosition();
+      if (mapManager) mapManager.onResize();
+    });
     updatePlayerPosition();
 
     // 프레임 루프: 게임 상태 업데이트와 화면 그리기
@@ -383,6 +444,15 @@
       // 게임 캔버스 초기화
       if(gctx){
         gctx.clearRect(0, 0, game.width, game.height);
+      }
+
+      // 맵 그리기 (배경)
+      if (mapManager) mapManager.draw();
+
+      // 몬스터 업데이트 및 그리기
+      if (monsterManager) {
+        monsterManager.update(dt);
+        monsterManager.draw(gctx);
       }
 
       // 노트 업데이트 및 그리기
@@ -440,7 +510,7 @@
       // 플레이어 이동과 그리기
       if (window.NoelPlayer) {
         const rect = game.getBoundingClientRect();
-        const speed = Math.max(120, rect.width * 0.5);
+        const speed = Math.max(120, rect.width * 0.2);
         const s = (dt / 1000) * speed;
         let moved = false;
         let nx = window.NoelPlayer.x || 0;
@@ -450,10 +520,22 @@
         if (keyState.UP) { ny -= s; moved = true; }
         if (keyState.DOWN) { ny += s; moved = true; }
 
-        // 경계 안으로 위치 제한
-        const margin = 8;
-        nx = Math.max(margin, Math.min(rect.width - margin, nx));
-        ny = Math.max(margin, Math.min(rect.height - margin, ny));
+        // 캐릭터 이미지 크기 계산
+        const player = window.NoelPlayer;
+        const dir = (player.direction === 'idle') ? 'idle' : player.direction;
+        const meta = player.meta && player.meta[dir];
+        let halfWidth = 16; // 기본값
+        let halfHeight = 16; // 기본값
+        
+        if (meta && player.scale) {
+          halfWidth = Math.floor((meta.frameW * player.scale) / 2);
+          halfHeight = Math.floor((meta.frameH * player.scale) / 2);
+        }
+
+        // 경계 안으로 위치 제한: 왼쪽 절반(0 ~ width/2), 아래 절반(height/2 ~ height)
+        // 캐릭터 이미지 크기를 고려하여 화면 밖으로 나가지 않도록 제한
+        nx = Math.max(halfWidth, Math.min(rect.width * 0.75 - halfWidth, nx));
+        ny = Math.max(rect.height * 0.5 + halfHeight, Math.min(rect.height - halfHeight, ny));
         window.NoelPlayer.setPosition(nx, ny);
 
         // 방향에 따라 애니메이션 설정

@@ -1,9 +1,9 @@
 (function(){
   'use strict';
   // CircularBuffer: 최근 항목만 기억하는 작은 저장소입니다.
-  // - 목적: 게임에서 "최근에 눌린 키" 같은 것을 최대 n개까지 기억하기 위함입니다.
+  // - 목적: 게임에서 "커맨드 키" 최대 n개까지 기억하기 위함입니다.
   // - 동작: 새 항목을 추가하면 빈 자리가 있으면 뒤에 넣고, 가득 차 있으면
-  //   가장 오래된 항목을 덮어써서 항상 최대 개수만 유지합니다.
+  //   가장 오래된 항목을 덮어써서 항상 최대 개수만 유지합니다.(원형 길이 큐, ring buffer)
   // - 내부 값:
   //   - buf: 항목을 담는 배열
   //   - start: 가장 오래된 항목이 들어 있는 위치(인덱스)
@@ -224,8 +224,8 @@
     cm.register('defend', ['X','X','Z','X'], ({name})=>{
       window.dispatchEvent(new CustomEvent('game:command', { detail: { command: 'defend' } }));
     });
-    //
-        cm.register('defend', ['Z','Z','X','X'], ({name})=>{
+    //#
+        cm.register('advance', ['Z','Z','X','X'], ({name})=>{
       window.dispatchEvent(new CustomEvent('game:command', { detail: { command: 'advance' } }));
     });
     return cm;

@@ -2,7 +2,6 @@
   renderer.js
 
   이 파일은 리듬 게임에서 화면에 보이는 것들을 그리는 역할을 합니다.
-  아래 코드는 중학생도 이해할 수 있도록 설명을 넣었습니다.
 
   주요 역할:
   - 노트(칸에 떨어지는 블록) 그리기
@@ -15,12 +14,10 @@
 (function () {
   'use strict';
 
-  // Renderer 클래스: Moon 스테이지에서 사용하는 간단한 렌더링 도구입니다.
-  // 이 프로젝트의 `moon.html`/`moon.js`에서는 노트가 수평으로 이동하므로
-  // 다음 역할만 제공합니다:
+  // Renderer 클래스: 스테이지5에서 사용하는 간단한 렌더링 도구입니다.
   // - drawSpatialNotes: x 위치와 속도로 관리되는 노트를 그대로 그립니다.
   // - drawVerticalHitLine: notesCanvas에서 사용하는 세로(수직) 히트 라인을 그림.
-  // - drawHUD: 게임 화면(`gameCanvas`)에 점수/콤보를 그림.
+  // - drawHUD: 게임 화면(`gameCanvas`)에 점수를 그림.
   class Renderer {
     constructor(canvas) {
       this.canvas = canvas;
@@ -135,13 +132,6 @@
         const commandX = leftX + scoreWidth + gap;
         ctx.fillText(commandText, commandX, baseY);
       }
-
-      ctx.textAlign = 'left';
-      ctx.fillStyle = '#fff';
-      ctx.fillText('Combo: ' + comboValue, rect.width - leftX, baseY);
-      ctx.textAlign = 'right';
-      ctx.fillText('Combo: ' + (scoreManager.combo || 0), rect.width - 14, 26);
-      ctx.restore();
     }
   }
 

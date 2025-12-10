@@ -43,6 +43,10 @@
             ㄴNoel.jpg   -- (gemini-ai-picture)
             ㄴNoel_LD.png  -- LD 배경제거
             ㄴNoel_SD.png  -- SD 배경제거
+    ㄴmap
+        ㄴmap1.jpg  <a href="http://www.freepik.com">Designed by macrovector / Freepik</a>
+        ㄴmap2.jpg  <a href="http://www.freepik.com">Designed by macrovector / Freepik</a>
+        ㄴmpa3.jpg  <a href="http://www.freepik.com">Designed by macrovector / Freepik</a>
     ㄴprojectile
         ㄴ투사체1.jpg
         ㄴ투사체2.jpg

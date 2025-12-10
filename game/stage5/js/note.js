@@ -11,7 +11,9 @@
       opts = opts || {};
       this.spawnInterval = opts.spawnInterval || 1000; // ms
       this.noteSpeed = opts.noteSpeed || 240; // css px per second
-      this.noteSize = opts.noteSize || 24; // css px
+      this.noteSize = opts.noteSize || 100; // css px
+      // noteHeight: make notes taller by default (4x height)
+      this.noteHeight = (typeof opts.noteHeight === 'number') ? opts.noteHeight : (this.noteSize * 4);
       this.notes = [];
       this._spawnTimer = 0;
     }
@@ -21,9 +23,10 @@
     spawn(){
       if(!this.canvas) return;
       const rect = this.canvas.getBoundingClientRect();
-      const x = rect.width + (this.noteSize/2); // just off-screen
+      const x = rect.width + (this.noteSize/2); // just off-screen (use width half)
       const y = rect.height / 2;
-      this.notes.push({ x: x, y: y, w: this.noteSize, speed: this.noteSpeed });
+      // include `size` (height) for compatibility with Renderer.drawSpatialNotes
+      this.notes.push({ x: x, y: y, w: this.noteSize, h: this.noteHeight, size: this.noteHeight, speed: this.noteSpeed });
     }
 
     update(dt){
@@ -41,7 +44,7 @@
       for(let i=0;i<this.notes.length;i++){
         const n = this.notes[i];
         n.x -= (n.speed * (dt/1000));
-        // remove if fully off left
+        // remove if fully off left (use width)
         if(n.x + n.w/2 < 0) {
           // 화면 왼쪽으로 완전히 나가면 제거합니다.
           // 아직 맞지 않은 노트면 miss로 간주하여 이벤트로 알립니다.
@@ -72,8 +75,9 @@
       this.ctx.fillStyle = '#3aa0ff';
       for(const n of this.notes){
         const hw = n.w/2;
-        const hh = n.w/2;
-        this._roundedRect(this.ctx, n.x - hw, n.y - hh, n.w, n.w, 6);
+        const hh = (typeof n.h === 'number') ? (n.h/2) : (n.w/2);
+        const radius = Math.min(6, Math.floor(Math.min(hw, hh)));
+        this._roundedRect(this.ctx, n.x - hw, n.y - hh, n.w, (n.h || n.w), radius);
         this.ctx.fill();
       }
       this.ctx.restore();
