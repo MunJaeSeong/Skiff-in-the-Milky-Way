@@ -39,6 +39,9 @@
       // 상태
       this.isAlive = true;
       this.isActive = false; // 전투 중인지 여부
+      // 자동 공격(주기) 타이머
+      this.lastAutoAttackTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      this.autoAttackInterval = options.autoAttackInterval || 3000; // ms
       
       // 애니메이션
       this.frame = 0;
@@ -157,6 +160,35 @@
         this.frame = (this.frame + 1) % 4; // 4프레임 루프
         this.frameTime = 0;
       }
+      // 자동 공격 검사는 MonsterManager가 호출할 수 있도록 분리함
+    }
+
+    // 자동 공격 시도: now는 performance.now() 권장
+    tryAutoAttack(now) {
+      if (!this.isAlive || !this.isActive) return null;
+      if (typeof now !== 'number') now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      if (now - this.lastAutoAttackTime >= this.autoAttackInterval) {
+        this.lastAutoAttackTime = now;
+        // 대상 플레이어에게 데미지
+        try {
+          const dmg = Number(this.attack) || 0;
+          if (window.NoelPlayer) {
+            // apply negative delta for damage
+            if (typeof window.NoelPlayer.applyHpDelta === 'function') {
+              window.NoelPlayer.applyHpDelta(-dmg);
+            } else if (typeof window.NoelPlayer.takeDamage === 'function') {
+              window.NoelPlayer.takeDamage(dmg);
+            } else if (typeof window.NoelPlayer.hp === 'number') {
+              window.NoelPlayer.hp = Math.max(0, (Number(window.NoelPlayer.hp) || 0) - dmg);
+            }
+          }
+          try { window.dispatchEvent && window.dispatchEvent(new CustomEvent('monster:attack', { detail: { monster: this, damage: dmg } })); } catch(e){}
+          return { type: 'attack', damage: dmg };
+        } catch (e) {
+          console.warn('Monster tryAutoAttack error', e);
+        }
+      }
+      return null;
     }
 
     // 그리기
@@ -457,9 +489,12 @@
 
     // 모든 몬스터 업데이트
     update(dt) {
+      const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       for (const monster of this.monsters) {
         if (monster.isAlive) {
           monster.update(dt);
+          // 자동 공격 시도
+          try { monster.tryAutoAttack && monster.tryAutoAttack(now); } catch(e) {}
         }
       }
     }
