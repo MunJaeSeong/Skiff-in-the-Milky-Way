@@ -6,9 +6,10 @@
   window.showLose = function(options){
     options = options || {};
     const Game = window.Game || {};
-    const canvas = (Game && Game.canvas) ? Game.canvas : document.getElementById('gameCanvas');
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
+    // Prefer a fullscreen overlay canvas if present so overlays sit above other canvases
+    const overlayCanvas = document.getElementById('allCanvas') || ((Game && Game.canvas) ? Game.canvas : document.getElementById('gameCanvas'));
+    if (!overlayCanvas) return;
+    const rect = overlayCanvas.getBoundingClientRect();
     const panelFraction = (Game && Game.styles && typeof Game.styles.panelFraction === 'number') ? Game.styles.panelFraction : 0.25;
     const gameAreaW = Math.max(100, (Game && Game.width ? Game.width : rect.width) - Math.floor((Game && Game.width ? Game.width : rect.width) * panelFraction));
 
@@ -91,6 +92,9 @@
     hudImg.style.zIndex = 10002;
     hudImg.style.filter = 'drop-shadow(0 8px 16px rgba(0,0,0,0.6))';
 
+    // determine asset base (use global ASSET_BASE if set by the page)
+    const assetBase = (typeof window !== 'undefined' && window.ASSET_BASE) ? window.ASSET_BASE : '../../assets';
+
     // Build candidate lose image paths based on saved custom selection (if any)
     const STORAGE_KEY = 'skiff_custom_v1';
     let charId = null;
@@ -100,15 +104,15 @@
     if (charId && typeof charId === 'string'){
       const cap = charId.charAt(0).toUpperCase() + charId.slice(1);
       // common possible locations / name styles
-      candidates.push(`assets/character/${charId}/${charId}_lose.png`);
-      candidates.push(`assets/character/${charId}/${cap}_lose.png`);
-      candidates.push(`assets/character/${cap}/${cap}_lose.png`);
-      candidates.push(`assets/character/${cap}_lose.png`);
-      candidates.push(`assets/character/${charId}_lose.png`);
-      candidates.push(`assets/character/${cap}/${charId}_lose.png`);
+      candidates.push(`${assetBase}/character/${charId}/${charId}_lose.png`);
+      candidates.push(`${assetBase}/character/${charId}/${cap}_lose.png`);
+      candidates.push(`${assetBase}/character/${cap}/${cap}_lose.png`);
+      candidates.push(`${assetBase}/character/${cap}_lose.png`);
+      candidates.push(`${assetBase}/character/${charId}_lose.png`);
+      candidates.push(`${assetBase}/character/${cap}/${charId}_lose.png`);
     }
     // fallback
-    candidates.push('assets/character/noel/Noel_lose.png');
+    candidates.push(`${assetBase}/character/noel/Noel_lose.png`);
 
     // try candidates in order for the HUD image; reuse same candidates for hudImg
     hudImg._candidates = candidates;
@@ -139,14 +143,14 @@
       if (!charId) charId = 'noel';
       const cap = charId.charAt(0).toUpperCase() + charId.slice(1);
       const voiceCandidates = [
-        `assets/audio/character/${charId}_lose_voice.wav`,
-        `assets/audio/character/${cap}_lose_voice.wav`,
-        `assets/audio/character/${charId}/${charId}_lose_voice.wav`,
-        `assets/audio/character/${cap}/${cap}_lose_voice.wav`,
-        `assets/audio/character/${charId}/${cap}_lose_voice.wav`,
-        `assets/audio/character/${cap}/${charId}_lose_voice.wav`,
+        `${assetBase}/audio/character/${charId}_lose_voice.wav`,
+        `${assetBase}/audio/character/${cap}_lose_voice.wav`,
+        `${assetBase}/audio/character/${charId}/${charId}_lose_voice.wav`,
+        `${assetBase}/audio/character/${cap}/${cap}_lose_voice.wav`,
+        `${assetBase}/audio/character/${charId}/${cap}_lose_voice.wav`,
+        `${assetBase}/audio/character/${cap}/${charId}_lose_voice.wav`,
       ];
-      voiceCandidates.push(`assets/audio/character/noel_lose_voice.wav`);
+      voiceCandidates.push(`${assetBase}/audio/character/noel_lose_voice.wav`);
 
       overlay._voiceAudio = null;
       (function tryPlay(i){
@@ -162,6 +166,29 @@
     }catch(e){}
 
     // create action buttons container (Restart above Exit) positioned to the right of the HUD image
+    // create a right-side panel shade that covers the game's panel area (right margin)
+    let panelShade = document.getElementById('game-lose-panel');
+    if (!panelShade){
+      panelShade = document.createElement('div');
+      panelShade.id = 'game-lose-panel';
+      document.body.appendChild(panelShade);
+    }
+    // compute client pixels for the panel (right fraction of the game area)
+    try{
+      const panelFractionLocal = (Game && Game.styles && typeof Game.styles.panelFraction === 'number') ? Game.styles.panelFraction : panelFraction;
+      const panelWidthPx = Math.round(rect.width * (panelFractionLocal || 0.25));
+      const panelLeftPx = Math.round(rect.left + (rect.width - panelWidthPx));
+      panelShade.style.position = 'absolute';
+      panelShade.style.left = panelLeftPx + 'px';
+      panelShade.style.top = rect.top + 'px';
+      panelShade.style.width = panelWidthPx + 'px';
+      panelShade.style.height = rect.height + 'px';
+      panelShade.style.pointerEvents = 'none';
+      panelShade.style.background = 'rgba(0,0,0,0.95)';
+      panelShade.style.zIndex = 10001; // behind action buttons (10003) but above game overlay
+    }catch(e){ }
+
+    // actions container (Exit button) remains fixed so it can be positioned relative to viewport
     let actions = document.getElementById('game-lose-actions');
     if (!actions){
       actions = document.createElement('div');
@@ -181,7 +208,7 @@
     function positionActions(){
       try{
         // Prefer to position relative to the small SD portrait drawn on the game canvas.
-        const canvasEl = document.getElementById('gameCanvas');
+        const canvasEl = document.getElementById('allCanvas') || document.getElementById('gameCanvas');
         const canvasRect = canvasEl ? canvasEl.getBoundingClientRect() : rect;
         // internal game resolution fallback
         const internalW = (Game && Game.width) ? Game.width : (canvasEl ? canvasEl.width : canvasRect.width);
@@ -215,8 +242,8 @@
         // place actions to the right of the SD portrait with a small gap
         const gap = 8;
         const left = sdClientRight + gap;
-        // vertically align so buttons stack near the SD bottom
-        const totalBtnHeight = (restartBtn ? restartBtn.offsetHeight : 44) + (exitBtn ? exitBtn.offsetHeight : 44) + 8;
+        // vertically align so buttons stack near the SD bottom (only Exit button present)
+        const totalBtnHeight = (exitBtn ? exitBtn.offsetHeight : 44) + 8;
         const top = Math.max(8, sdClientBottom - totalBtnHeight);
 
         // if calculated left would overflow viewport, fallback to placing left of SD
@@ -232,16 +259,6 @@
       }catch(e){ /* ignore positioning errors */ }
     }
 
-    // create Restart button (위에)
-    let restartBtn = document.getElementById('game-lose-restart');
-    if (!restartBtn){
-      restartBtn = document.createElement('button');
-      restartBtn.id = 'game-lose-restart';
-      restartBtn.type = 'button';
-      restartBtn.textContent = '재시작';
-      restartBtn.className = 'lose-action-btn restart';
-      actions.appendChild(restartBtn);
-    }
     // create Exit button (아래)
     let exitBtn = document.getElementById('game-lose-exit');
     if (!exitBtn){
@@ -254,7 +271,7 @@
     }
 
     // basic inline styles so the buttons are visible and match the dark theme
-    [restartBtn, exitBtn].forEach(b => {
+    [exitBtn].forEach(b => {
       if (!b) return;
       b.style.padding = '10px 14px';
       b.style.borderRadius = '8px';
@@ -266,49 +283,18 @@
       b.style.boxShadow = '0 6px 18px rgba(0,0,0,0.6)';
     });
 
-    // restart behavior: try common restart APIs in order
-    const doRestart = function(){
-      try{
-        // hide overlay first
-        window.hideLose && window.hideLose();
-      }catch(e){}
-      try{
-        if (Game && typeof Game.restart === 'function'){
-          Game.restart();
-          return;
-        }
-        // attempt to reuse known identifiers
-        const stageId = (Game && (Game.currentStage || Game.currentStageId)) || (window.StageSelect && window.StageSelect.selected) || null;
-        if (Game && typeof Game.startStage === 'function' && stageId){
-          Game.startStage(stageId).catch && Game.startStage(stageId).catch(console.error);
-          return;
-        }
-        // fallback: try to re-init and start stage1
-        if (Game && typeof Game.init === 'function'){
-          try{ Game.init && Game.init('gameCanvas'); }catch(e){}
-          if (typeof Game.startStage === 'function') Game.startStage('stage1').catch && Game.startStage('stage1').catch(console.error);
-        }
-      }catch(e){ console.error('Restart failed', e); }
-    };
+    // Restart button removed: using Exit to return to previous page instead.
 
-  restartBtn.addEventListener('click', function(){ doRestart(); });
-
-    // exit behavior: hide overlay and return to start screen
+    // exit behavior: hide overlay and navigate back to previous page
     exitBtn.addEventListener('click', function(){
       try{ window.hideLose && window.hideLose(); }catch(e){}
       try{
-        // Show the stage-select UI instead of the start/title screen
-        const selectUI = document.getElementById('gameSelectUI');
-        const startScreen = document.getElementById('startScreen');
-        const canvasEl = document.getElementById('gameCanvas');
-        const selectCanvas = document.getElementById('gameSelectCanvas');
-        if (canvasEl) canvasEl.style.display = 'none';
-        if (selectCanvas) selectCanvas.style.display = '';
-        if (startScreen) { startScreen.style.display = 'none'; startScreen.setAttribute('aria-hidden','true'); }
-        if (selectUI) { selectUI.style.display = ''; selectUI.removeAttribute('aria-hidden'); }
-        // refresh select UI localization if available
-        try{ if (window.StageSelect && typeof window.StageSelect.localize === 'function') window.StageSelect.localize(); }catch(e){}
-        const btnCustomize = document.getElementById('customizeBtn'); if (btnCustomize) try{ btnCustomize.focus(); }catch(e){}
+        if (window.history && typeof window.history.back === 'function') {
+          window.history.back();
+        } else if (typeof window.location !== 'undefined') {
+          // fallback: go to root
+          window.location.href = '/';
+        }
       }catch(e){ console.error(e); }
     });
 
@@ -328,6 +314,7 @@
       try{ const t = document.getElementById('game-lose-title'); if (t && t.parentNode) t.parentNode.removeChild(t); }catch(e){}
       try{ const h = document.getElementById('game-lose-hud-img'); if (h && h.parentNode) h.parentNode.removeChild(h); }catch(e){}
       try{ const a = document.getElementById('game-lose-actions'); if (a && a.parentNode) a.parentNode.removeChild(a); }catch(e){}
+      try{ const p = document.getElementById('game-lose-panel'); if (p && p.parentNode) p.parentNode.removeChild(p); }catch(e){}
       try{ window.removeEventListener && window.removeEventListener('resize', positionActions); }catch(e){}
       try{ if (hudImg && hudImg.removeEventListener) hudImg.removeEventListener('load', positionActions); }catch(e){}
       try{ if (overlay && overlay._voiceAudio){ try{ overlay._voiceAudio.pause(); }catch(e){} overlay._voiceAudio = null; } }catch(e){}

@@ -19,10 +19,13 @@
 		<canvas id="notesCanvas" aria-label="Notes Canvas"></canvas>
 	</div>
 
+    <!-- Fullscreen overlay canvas used by overlays (clear/fail) to position above other canvases -->
+    <canvas id="allCanvas" aria-label="Allscreen Canvas" style="position:fixed;left:0;top:0;width:100%;height:100%;z-index:10010;pointer-events:none;"></canvas>
+
 	<!-- 공통 유틸/오버레이 (paths relative to this file) -->
-	<script src="../../util.js"></script>
-	<script src="../../clear.js"></script>
-	<script src="../../fail.js"></script>
+	<script src="../util.js"></script>
+	<script src="../clear.js"></script>
+	<script src="../fail.js"></script>
 
 	<!-- Stage5 modules (parent directory) -->
 	<!-- 페이지 기준으로 assets 경로를 지정: stage5.html은 game/stage5 폴더에 있으므로 assets는 ../../assets -->
@@ -44,16 +47,26 @@
 			const dpr = window.devicePixelRatio || 1;
 			const game = document.getElementById('gameCanvas');
 			const notes = document.getElementById('notesCanvas');
+			const all = document.getElementById('allCanvas');
 			const gameRect = game.getBoundingClientRect();
 			const notesRect = notes.getBoundingClientRect();
 			game.width = Math.round(gameRect.width * dpr);
 			game.height = Math.round(gameRect.height * dpr);
 			notes.width = Math.round(notesRect.width * dpr);
 			notes.height = Math.round(notesRect.height * dpr);
+			if (all){
+				// full viewport canvas
+				all.width = Math.round(window.innerWidth * dpr);
+				all.height = Math.round(window.innerHeight * dpr);
+				// keep it non-interactive by default; overlay divs will handle pointer events
+				all.style.pointerEvents = 'none';
+			}
 			const gctx = game.getContext('2d');
 			const nctx = notes.getContext('2d');
+			const actx = all ? all.getContext('2d') : null;
 			if (gctx) gctx.setTransform(dpr,0,0,dpr,0,0);
 			if (nctx) nctx.setTransform(dpr,0,0,dpr,0,0);
+			if (actx) actx.setTransform(dpr,0,0,dpr,0,0);
 		}
 		window.addEventListener('resize', resizeCanvases);
 		window.addEventListener('load', resizeCanvases);

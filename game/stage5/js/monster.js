@@ -59,16 +59,43 @@
     // 이미지 로드 함수
     loadImage(path) {
       if (!path) return;
-      
-      this.image = new Image();
-      this.image.onload = () => {
-        this.imageLoaded = true;
+      const tryPath = String(path);
+      const assetBase = (typeof window !== 'undefined' && window.ASSET_BASE) ? window.ASSET_BASE : '../../assets';
+      // resolve assetBase to an absolute URL relative to the document to avoid ../ path issues
+      let resolvedBase = assetBase;
+      try { resolvedBase = (new URL(String(assetBase).replace(/\/$/, '') + '/', document.baseURI)).href.replace(/\/$/, ''); } catch(e) { resolvedBase = assetBase; }
+      const defaultPath = resolvedBase + '/monster/default.png';
+
+      const doLoad = (p, onFail) => {
+        this.image = new Image();
+        // do not set crossOrigin for local file setups to avoid failures
+        this.image.onload = () => {
+          this.imageLoaded = true;
+          this.imagePath = p;
+          // store debug info on window for easy inspection
+          try{ window.__monsterDebug = window.__monsterDebug || {}; window.__monsterDebug.lastLoaded = { path: p, name: this.name, time: Date.now() }; }catch(e){}
+          try { console.debug && console.debug('Monster image loaded:', p, 'for', this.name); } catch(e){}
+          try{ window.dispatchEvent && window.dispatchEvent(new CustomEvent('monster:imageLoaded', { detail: { path: p, name: this.name } })); }catch(e){}
+        };
+        this.image.onerror = () => {
+          this.imageLoaded = false;
+          try{ window.__monsterDebug = window.__monsterDebug || {}; window.__monsterDebug.lastFailed = { path: p, name: this.name, time: Date.now() }; }catch(e){}
+          try { console.warn('Failed to load monster image:', p, 'for', this.name); } catch(e){}
+          try{ window.dispatchEvent && window.dispatchEvent(new CustomEvent('monster:imageFailed', { detail: { path: p, name: this.name } })); }catch(e){}
+          if (typeof onFail === 'function') onFail();
+        };
+        this.image.src = p;
       };
-      this.image.onerror = () => {
-        console.warn('Failed to load monster image:', path);
-        this.imageLoaded = false;
-      };
-      this.image.src = path;
+
+      // First try the requested path, then fallback to default if it fails
+      doLoad(tryPath, () => {
+        if (tryPath !== defaultPath) {
+          doLoad(defaultPath, () => {
+            // give up after default fails
+            try { console.warn('Monster default image also failed to load:', defaultPath); } catch(e){}
+          });
+        }
+      });
     }
 
     // 데미지 받기
@@ -192,17 +219,48 @@
       this.monsters = [];
       this.activeMonster = null;
       this.spawnedDistances = new Set(); // 이미 생성된 거리 기록
+      this.imageCache = {}; // name -> Image object
       
-      // 몬스터 스폰 설정
+      // 몬스터 스폰 설정 (각 몬스터에 대응하는 이미지 파일명을 `image`에 지정)
       this.spawnPoints = [
-        { distance: 100, level: 1, type: 'normal', name: 'Slime' },
-        { distance: 200, level: 1, type: 'normal', name: 'Goblin' },
-        { distance: 400, level: 2, type: 'normal', name: 'Orc' },
-        { distance: 500, level: 2, type: 'normal', name: 'Troll' },
-        { distance: 700, level: 3, type: 'normal', name: 'Drake' },
-        { distance: 800, level: 3, type: 'normal', name: 'Wyvern' },
-        { distance: 1000, level: 4, type: 'boss', name: 'Dragon King' }
+        { distance: 100, level: 1, type: 'normal', name: 'Slime', image: 'slime.png' },
+        { distance: 200, level: 1, type: 'normal', name: 'Goblin', image: 'goblin.png' },
+        { distance: 400, level: 2, type: 'normal', name: 'Orc', image: 'orc.png' },
+        { distance: 500, level: 2, type: 'normal', name: 'Troll', image: 'troll.png' },
+        { distance: 700, level: 3, type: 'normal', name: 'Griffin', image: 'griffin.png' },
+        { distance: 800, level: 3, type: 'normal', name: 'Wyvern', image: 'wyvern.png' },
+        { distance: 1000, level: 4, type: 'boss', name: 'Dragon', image: 'dragon.png' }
       ];
+
+      // preload images for spawnPoints to avoid timing/path issues
+      try {
+        this.preloadImages();
+      } catch (e) { /* ignore preload errors */ }
+    }
+
+    // preload images referenced by spawnPoints into imageCache
+    preloadImages() {
+      const assetBase = (typeof window !== 'undefined' && window.ASSET_BASE) ? window.ASSET_BASE : '../../assets';
+      let resolvedBase = assetBase;
+      try { resolvedBase = (new URL(String(assetBase).replace(/\/$/, '') + '/', document.baseURI)).href.replace(/\/$/, ''); } catch(e) { resolvedBase = assetBase; }
+      for (const p of this.spawnPoints) {
+        try {
+          let imagePath = null;
+          if (p.image) {
+            imagePath = (p.image.indexOf('/') !== -1) ? p.image : (assetBase + '/monster/' + p.image);
+          } else if (p.name) {
+            const nameForFile = String(p.name || '').toLowerCase().replace(/\s+/g, '_');
+            imagePath = assetBase + '/monster/' + nameForFile + '.png';
+          }
+          if (!imagePath) continue;
+          const img = new Image();
+          img.onload = (() => { try{ console.debug && console.debug('Preloaded monster image:', imagePath, 'for', p.name); }catch(e){} });
+          img.onerror = (() => { try{ console.warn && console.warn('Preload failed for monster image:', imagePath, 'for', p.name); }catch(e){} });
+          // if imagePath is relative, resolve against document base
+          try { img.src = (new URL(imagePath, document.baseURI)).href; } catch(e) { img.src = imagePath; }
+          this.imageCache[String(p.name).toLowerCase()] = img;
+        } catch (e) { /* ignore per-image errors */ }
+      }
     }
 
     // 거리에 따라 몬스터 생성 확인
@@ -306,6 +364,24 @@
         };
       };
       
+      // determine image path: 우선 config.image (명시적 파일명)을 사용, 없으면 이름 기반 파일명 사용
+      const assetBase = (typeof window !== 'undefined' && window.ASSET_BASE) ? window.ASSET_BASE : '../../assets';
+      let resolvedBase = assetBase;
+      try { resolvedBase = (new URL(String(assetBase).replace(/\/$/, '') + '/', document.baseURI)).href.replace(/\/$/, ''); } catch(e) { resolvedBase = assetBase; }
+      let imagePath = null;
+      if (config && config.image) {
+        // if image provided, allow both literal paths and filenames
+        if (config.image.indexOf('/') !== -1) {
+          imagePath = config.image; // full or relative path
+        } else {
+          imagePath = resolvedBase + '/monster/' + String(config.image);
+        }
+      } else {
+        const nameForFile = String(config.name || '').toLowerCase().replace(/\s+/g, '_');
+        imagePath = resolvedBase + '/monster/' + nameForFile + '.png';
+      }
+      try { console.debug && console.debug('spawnMonster - imagePath for', config.name, '=>', imagePath); } catch (e){}
+
       const monster = new Monster({
         level: config.level,
         type: config.type,
@@ -318,9 +394,22 @@
         y: y,
         scale: scale,
         skillFunction: skillFunction,
-        skillCooldown: skillCooldown
+        skillCooldown: skillCooldown,
+        imagePath: imagePath
         // imagePath는 나중에 이미지 파일이 준비되면 추가
       });
+
+      // if we preloaded an Image for this monster name, assign it directly
+      try {
+        const cacheKey = String(config.name || '').toLowerCase();
+        const cached = this.imageCache && this.imageCache[cacheKey];
+        if (cached && cached.complete && cached.naturalWidth > 0) {
+          monster.image = cached;
+          monster.imageLoaded = true;
+          monster.imagePath = cached.src || imagePath;
+          try{ console.debug && console.debug('Assigned cached image to monster:', monster.name, monster.imagePath); }catch(e){}
+        }
+      } catch (e) {}
       
       this.monsters.push(monster);
       this.activeMonster = monster;

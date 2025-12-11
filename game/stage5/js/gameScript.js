@@ -41,7 +41,6 @@
     // 노트 관리자, 판정 이펙트(화면에 잠깐 보이는 텍스트), 점수 정보를 준비합니다.
     let noteManager = null;
     const judgments = []; // 판정 효과들을 잠시 저장하는 배열
-    const scoreManager = { score: 0};
 
     // 커맨드 관련 설정
     const COMMAND_BUFFER_CAPACITY = 4;
@@ -70,6 +69,19 @@
     if (window.MonsterManager) {
       monsterManager = new window.MonsterManager();
       window.stage5MonsterManager = monsterManager; // 디버그용 전역 보관
+      // BOSS 사망 시 게임 클리어 처리: monster:death 이벤트를 구독
+      try {
+        window.addEventListener('monster:death', function(ev){
+          try{
+            const d = ev && ev.detail;
+            if (!d) return;
+            // 몬스터 타입이 'boss' 이거나 레벨이 4 이상이면 승리로 처리
+            if (String(d.type).toLowerCase() === 'boss' || (typeof d.level === 'number' && d.level >= 4)){
+              endGame('win');
+            }
+          }catch(e){ console.warn('monster:death handler error', e); }
+        }, false);
+      } catch(e) { /* ignore listener errors */ }
     }
 
     // NoteManager가 있으면 인스턴스화합니다. (notesCanvas가 필요)
@@ -106,10 +118,7 @@
         const r = notesCanvas.getBoundingClientRect();
         judgments.push({ label: res.name, x: hitX + 30, y: r.height/2, t: now, ttl: 700, color: color });
 
-        // 점수와 콤보 업데이트
-        scoreManager.score += (res.score || 0);
-        if (res.name === 'miss') scoreManager.combo = 0;
-        else scoreManager.combo = (scoreManager.combo || 0) + 1;
+        // (score removed) 콤보/점수 관련 처리는 더 이상 수행하지 않습니다.
 
         // 판정으로 회복(heal) 수치가 있으면 플레이어 체력에 적용
         if (typeof res.heal !== 'undefined' && window.NoelPlayer) {
@@ -191,6 +200,7 @@
 
     // 명령이 인식되었을 때 실제로 처리하는 함수
     function handleCommandResolution(payload){
+      if (typeof gameEnded !== 'undefined' && gameEnded) return; // ignore commands after game end
       if (!payload || !payload.seq) return;
       const seqLength = payload.seq.length;
       const entries = Array.isArray(payload.entries) ? payload.entries.slice(-seqLength) : [];
@@ -340,10 +350,7 @@
         judgments.push({ label: res.name, x: hitX + 30, y: rect.height/2, t: nowTs, ttl: 700, color: color });
       }
 
-      // 점수와 콤보 적용
-      scoreManager.score += (res.score || 0);
-      if (res.name === 'miss') scoreManager.combo = 0;
-      else scoreManager.combo = (scoreManager.combo || 0) + 1;
+      // (score removed) 콤보/점수 관련 처리는 더 이상 수행하지 않습니다.
 
       // 회복(heal) 적용
       if (typeof res.heal !== 'undefined' && window.NoelPlayer){
@@ -435,9 +442,14 @@
     });
     updatePlayerPosition();
 
+    // 게임 종료 플래그와 RAF id
+    let gameEnded = false;
+    let rafId = null;
+
     // 프레임 루프: 게임 상태 업데이트와 화면 그리기
     let last = performance.now();
     function frame(now){
+      if (gameEnded) return; // 게임이 종료되면 루프 동작 중지
       const dt = Math.min(100, now - last); // 너무 큰 dt는 제한
       last = now;
 
@@ -562,8 +574,35 @@
             commandState.lastCommandText = '';
           }
         }
-        if (gameRenderer) {
-          gameRenderer.drawHUD(scoreManager, { bufferText: bufferLabel, commandText: commandLabel });
+        if (gameRenderer && gctx) {
+          // drawHUD normally draws score; we've removed score display requirement
+          // so manually draw only buffer and command text here.
+          try {
+            const rectG = game.getBoundingClientRect();
+            gctx.save();
+            gctx.font = '18px sans-serif';
+            gctx.textAlign = 'left';
+            const baseY = 26;
+            const leftX = 14;
+            const rawBuffer = bufferLabel || '';
+            const bufferText = rawBuffer ? ('Buffer: ' + rawBuffer) : '';
+            const commandText = commandLabel ? ('Cmd: ' + commandLabel) : '';
+            const gap = 12;
+            if (bufferText) {
+              gctx.fillStyle = '#4FC3F7';
+              gctx.fillText(bufferText, leftX, baseY);
+              if (commandText) {
+                gctx.fillStyle = '#F44336';
+                const bufferWidth = gctx.measureText(bufferText).width;
+                const commandX = leftX + bufferWidth + gap;
+                gctx.fillText(commandText, commandX, baseY);
+              }
+            } else if (commandText) {
+              gctx.fillStyle = '#F44336';
+              gctx.fillText(commandText, leftX, baseY);
+            }
+            gctx.restore();
+          } catch (e) { /* ignore HUD draw errors */ }
         }
 
         // 체력 바 그리기
@@ -599,12 +638,44 @@
           } catch (e) {
             console.warn('HP bar draw failed', e);
           }
+          // 플레이어 HP가 0 이하이면 게임 오버 처리
+          try{
+            const hpNow = Number(window.NoelPlayer.hp) || 0;
+            if (hpNow <= 0) {
+              endGame('lose');
+            }
+          }catch(e){ /* ignore */ }
         }
       }
 
-      requestAnimationFrame(frame);
+      rafId = requestAnimationFrame(frame);
     }
-    requestAnimationFrame(frame);
+    rafId = requestAnimationFrame(frame);
+
+    // 중앙화된 게임 종료 처리기
+    function endGame(mode){
+      if (gameEnded) return;
+      gameEnded = true;
+      try { if (rafId) cancelAnimationFrame(rafId); } catch (e) {}
+
+      // stop possible background audio if present
+      try{ if (window.MenuBGM && typeof window.MenuBGM.stop === 'function') window.MenuBGM.stop(); }catch(e){}
+      try{ if (window.Game && window.Game._bgmAudio){ window.Game._bgmAudio.pause(); window.Game._bgmAudio = null; } }catch(e){}
+
+      // block further input by removing input handlers if possible
+      try{ if (input && typeof input.destroy === 'function') input.destroy(); }catch(e){}
+
+      // Show overlays depending on mode
+      try{
+        if (mode === 'win') {
+          if (typeof window.showWin === 'function') window.showWin({});
+          else console.warn('showWin not found');
+        } else if (mode === 'lose') {
+          if (typeof window.showLose === 'function') window.showLose({});
+          else console.warn('showLose not found');
+        }
+      } catch (e) { console.warn('endGame overlay failed', e); }
+    }
   }
 
   // 문서가 아직 로딩 중이면 DOMContentLoaded 이벤트에서 init을 호출하고,

@@ -23,12 +23,12 @@
   function judge(deltaMs) {
     const d = Math.abs(deltaMs); // 오차의 크기
 
-    if (d <= PERFECT) return { name: 'perfect', attack : 2 , heal  : 3, score: 500 };
-    if (d <= GOOD) return { name: 'good', attack : 1.3 , heal  : 1, score: 150 };
-    if (d <= MISS) return { name: 'miss', attack : 0.3 , heal  : -5, score: 0 };
+    if (d <= PERFECT) return { name: 'perfect', attack : 2 , heal  : 3 };
+    if (d <= GOOD) return { name: 'good', attack : 1.3 , heal  : 1 };
+    if (d <= MISS) return { name: 'miss', attack : 0.3 , heal  : -5 };
 
     // 그보다 더 어긋나면 미스로 처리
-    return { name: 'miss', attack : 0.3 , heal  : -5, score: 0 };
+    return { name: 'miss', attack : 0.3 , heal  : -5 };
   }
 
   // 전역에 공개해서 다른 코드에서 사용할 수 있게 합니다.

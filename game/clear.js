@@ -51,9 +51,10 @@
   window.showWin = function(options){
     options = options || {};
     const Game = window.Game || {};
-    const canvas = (Game && Game.canvas) ? Game.canvas : document.getElementById('gameCanvas');
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
+    // Prefer a fullscreen overlay canvas if present so overlays sit above other canvases
+    const overlayCanvas = document.getElementById('allCanvas') || ((Game && Game.canvas) ? Game.canvas : document.getElementById('gameCanvas'));
+    if (!overlayCanvas) return;
+    const rect = overlayCanvas.getBoundingClientRect();
     const panelFraction = (Game && Game.styles && typeof Game.styles.panelFraction === 'number') ? Game.styles.panelFraction : 0.25;
     const gameAreaW = Math.max(100, (Game && Game.width ? Game.width : rect.width) - Math.floor((Game && Game.width ? Game.width : rect.width) * panelFraction));
 
@@ -221,10 +222,31 @@
     actions.style.alignItems = 'center';
     actions.style.zIndex = 10003;
 
+    // create a right-side panel shade that covers the game's panel area (right margin)
+    let panelShade = document.getElementById('game-win-panel');
+    if (!panelShade){
+      panelShade = document.createElement('div');
+      panelShade.id = 'game-win-panel';
+      document.body.appendChild(panelShade);
+    }
+    try{
+      const panelFractionLocal = (Game && Game.styles && typeof Game.styles.panelFraction === 'number') ? Game.styles.panelFraction : panelFraction;
+      const panelWidthPx = Math.round(rect.width * (panelFractionLocal || 0.25));
+      const panelLeftPx = Math.round(rect.left + (rect.width - panelWidthPx));
+      panelShade.style.position = 'absolute';
+      panelShade.style.left = panelLeftPx + 'px';
+      panelShade.style.top = rect.top + 'px';
+      panelShade.style.width = panelWidthPx + 'px';
+      panelShade.style.height = rect.height + 'px';
+      panelShade.style.pointerEvents = 'none';
+      panelShade.style.background = 'rgba(0,0,0,0.95)';
+      panelShade.style.zIndex = 10001; // behind action buttons but above game overlay
+    }catch(e){ }
+
     // 헬퍼: HUD 이미지 오른쪽에 버튼을 위치시키기 위한 계산(뷰포트 좌표 기준)
     function positionActions(){
       try{
-        const canvasEl = document.getElementById('gameCanvas');
+        const canvasEl = document.getElementById('allCanvas') || document.getElementById('gameCanvas');
         const canvasRect = canvasEl ? canvasEl.getBoundingClientRect() : rect;
         const internalW = (Game && Game.width) ? Game.width : (canvasEl ? canvasEl.width : canvasRect.width);
         const internalH = (Game && Game.height) ? Game.height : (canvasEl ? canvasEl.height : canvasRect.height);
@@ -376,6 +398,7 @@
       try{ const t = document.getElementById('game-win-title'); if (t && t.parentNode) t.parentNode.removeChild(t); }catch(e){}
       try{ const h = document.getElementById('game-win-hud-img'); if (h && h.parentNode) h.parentNode.removeChild(h); }catch(e){}
       try{ const a = document.getElementById('game-win-actions'); if (a && a.parentNode) a.parentNode.removeChild(a); }catch(e){}
+      try{ const p = document.getElementById('game-win-panel'); if (p && p.parentNode) p.parentNode.removeChild(p); }catch(e){}
       try{ window.removeEventListener && window.removeEventListener('resize', positionActions); }catch(e){}
       try{ if (hudImg && hudImg.removeEventListener) hudImg.removeEventListener('load', positionActions); }catch(e){}
       try{ if (overlay && overlay._voiceAudio){ try{ overlay._voiceAudio.pause(); }catch(e){} overlay._voiceAudio = null; } }catch(e){}
